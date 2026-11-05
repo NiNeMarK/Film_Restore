@@ -1,0 +1,193 @@
+"""FastAPI backend + เสิร์ฟหน้าเว็บ Gradio ที่ http://localhost:7860
+
+API (ใช้ต่อยอดกับ React ในเฟส 3 ได้):
+  GET  /api/health    สเปกเครื่อง + สถานะโมเดล
+  GET  /api/presets   รายการโหมดและค่าเริ่มต้น
+  POST /api/restore   อัปโหลดภาพ + ตั้งค่า แล้วคืนผลแต่ละขั้นพร้อม URL
+
+รัน: python backend/main.py --host 127.0.0.1 --port 7860
+เปิดให้มือถือในวง Wi-Fi เดียวกันใช้: python backend/main.py --host 0.0.0.0
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import threading
+import uuid
+import webbrowser
+from pathlib import Path
+
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import uvicorn
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+
+from backend.core import gpu as gpu_mod
+from backend.core.image_io import IMAGE_EXTS, RAW_EXTS, crop_film_border, load_image, save_image
+from backend.core.model_manager import get_manager
+from backend.pipeline.engine import Engine
+from backend.pipeline.presets import PRESET_LABELS, PRESET_NOTES, PRESETS, get_preset
+
+BACKEND_DIR = Path(__file__).resolve().parent
+OUTPUT_DIR = BACKEND_DIR / "outputs"
+UPLOAD_DIR = OUTPUT_DIR / "uploads"
+ALLOWED_EXTS = IMAGE_EXTS | RAW_EXTS
+
+_gpu_cache: gpu_mod.GPUInfo | None = None
+
+
+def gpu_info() -> gpu_mod.GPUInfo:
+    global _gpu_cache
+    if _gpu_cache is None:
+        _gpu_cache = gpu_mod.detect()
+    return _gpu_cache
+
+
+def process_image(input_path: Path, preset: str, overrides: dict, crop: bool,
+                  job_id: str) -> dict:
+    """รัน pipeline แล้วบันทึกผลทุกขั้นลง backend/outputs/<job_id>"""
+    img, bits = load_image(input_path)
+    source = crop_film_border(img) if crop else img
+
+    engine = Engine(preset, overrides, gpu=gpu_info(), source_bits=bits)
+    result = engine.run(source)
+
+    job_dir = OUTPUT_DIR / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+    save_image(job_dir / "original.png", source)
+
+    stages = []
+    for index, stage in enumerate(result.stages, start=1):
+        filename = f"{index:02d}_{stage.key}.png"
+        save_image(job_dir / filename, stage.image)
+        payload = stage.as_dict()
+        payload["url"] = f"/files/{job_id}/{filename}"
+        stages.append(payload)
+
+    save_image(job_dir / "result.png", result.image)
+
+    meta = result.as_dict()
+    meta.update(
+        {
+            "job": job_id,
+            "original": {"width": source.shape[1], "height": source.shape[0], "bits": bits},
+            "original_url": f"/files/{job_id}/original.png",
+            "result_url": f"/files/{job_id}/result.png",
+            "stages": stages,
+        }
+    )
+    (job_dir / "settings.json").write_text(
+        json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    return meta
+
+
+def create_app(with_ui: bool = True) -> FastAPI:
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+    app = FastAPI(title="Film Restore", version="0.1.0")
+    app.mount("/files", StaticFiles(directory=str(OUTPUT_DIR)), name="files")
+
+    @app.get("/api/health")
+    def health():
+        return {
+            "status": "ok",
+            "gpu": gpu_info().as_dict(),
+            "models": get_manager().status(),
+        }
+
+    @app.get("/api/presets")
+    def list_presets():
+        return {
+            "labels": PRESET_LABELS,
+            "notes": PRESET_NOTES,
+            "defaults": {key: get_preset(key) for key in PRESETS},
+        }
+
+    @app.post("/api/restore")
+    async def restore(
+        file: UploadFile = File(...),
+        preset: str = Form("color_negative"),
+        overrides: str = Form("{}"),
+        crop_border: bool = Form(True),
+    ):
+        if preset not in PRESETS:
+            raise HTTPException(status_code=400, detail=f"ไม่รู้จักโหมด '{preset}'")
+
+        try:
+            parsed = json.loads(overrides or "{}")
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail=f"overrides ต้องเป็น JSON: {exc}") from exc
+        if not isinstance(parsed, dict):
+            raise HTTPException(status_code=400, detail="overrides ต้องเป็น JSON object")
+
+        suffix = Path(file.filename or "").suffix.lower()
+        if suffix not in ALLOWED_EXTS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"ไม่รองรับไฟล์ '{suffix or 'ไม่ทราบนามสกุล'}' "
+                f"(รองรับ: {', '.join(sorted(ALLOWED_EXTS))})",
+            )
+
+        job_id = uuid.uuid4().hex[:12]
+        upload_path = UPLOAD_DIR / f"{job_id}{suffix}"
+        upload_path.write_bytes(await file.read())
+
+        try:
+            payload = await run_in_threadpool(
+                process_image, upload_path, preset, parsed, bool(crop_border), job_id
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        return JSONResponse(payload)
+
+    if with_ui:
+        try:
+            import gradio as gr
+
+            from backend.ui import build_ui
+        except ImportError as exc:  # pragma: no cover - ขึ้นกับการติดตั้ง
+            raise RuntimeError(
+                "ต้องติดตั้ง gradio เพื่อใช้หน้าเว็บ (pip install gradio) "
+                "หรือรันด้วย FILM_RESTORE_API_ONLY=1 เพื่อใช้เฉพาะ API"
+            ) from exc
+
+        app = gr.mount_gradio_app(app, build_ui(gpu_info()), path="/")
+
+    return app
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Film Restore — localhost web app")
+    parser.add_argument("--host", default="127.0.0.1", help="0.0.0.0 เพื่อให้เครื่องอื่นในวงเดียวกันเข้าได้")
+    parser.add_argument("--port", type=int, default=7860)
+    parser.add_argument("--no-browser", action="store_true", help="ไม่ต้องเปิดเบราว์เซอร์อัตโนมัติ")
+    parser.add_argument("--cpu", action="store_true", help="บังคับใช้ CPU")
+    parser.add_argument("--api-only", action="store_true", help="ไม่ต้องเสิร์ฟหน้า Gradio")
+    args = parser.parse_args()
+
+    if args.cpu:
+        os.environ["FILM_RESTORE_CPU"] = "1"
+
+    app = create_app(with_ui=not args.api_only)
+    url = f"http://{'127.0.0.1' if args.host == '0.0.0.0' else args.host}:{args.port}"
+    print(f"Film Restore: {url}")
+    info = gpu_info()
+    print(f"Device: {info.device} ({info.name}) | tile={info.tile_size} | fp16={info.fp16}")
+
+    if not args.no_browser:
+        threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+
+
+if __name__ == "__main__":
+    main()

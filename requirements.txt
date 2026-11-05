@@ -1,0 +1,28 @@
+# ---------- แกนหลัก (จำเป็น) ----------
+numpy>=1.26
+opencv-python-headless>=4.9        # เปลี่ยนเป็น opencv-python ถ้าต้องการหน้าต่าง debug ของ OpenCV
+Pillow>=10.0
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9            # รับไฟล์อัปโหลดผ่าน /api/restore
+gradio>=4.44                       # หน้าเว็บเฟส 1 (มี gr.ImageSlider สำหรับเทียบก่อน/หลัง)
+
+# ---------- โมเดล AI (ไม่บังคับ) ----------
+# ถ้าไม่ติดตั้ง โปรแกรมยังรันได้ แต่จะใช้วิธีดั้งเดิมแทน (Lanczos, inpainting ของ OpenCV)
+# และขั้นที่ต้องใช้โมเดล (ใส่สี / ฟื้นฟูใบหน้า) จะถูกข้ามพร้อมแจ้งเตือน
+#
+# ติดตั้ง PyTorch ให้ตรงกับ CUDA ของเครื่องก่อน เช่น CUDA 12.1:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+# torch>=2.1
+# torchvision>=0.16
+#
+# realesrgan>=0.3.0               # upscale (Real-ESRGAN x2/x4)
+# basicsr==1.4.2                  # realesrgan/gfpgan ต้องใช้ (ใช้กับ torchvision<0.17)
+# gfpgan>=1.3.8                   # ฟื้นฟูใบหน้า + ตัวปรับ fidelity
+# simple-lama-inpainting>=0.1.2   # ลบรอยด้วย LaMa
+# modelscope>=1.15                # ใส่สีด้วย DDColor (damo/cv_ddcolor_image-colorization)
+# rawpy>=0.19                     # อ่านไฟล์ RAW (NEF, CR2, ARW, DNG, ...)
+
+# ---------- เดสก์ท็อป (เฟส 4) ----------
+# pywebview>=5.0
+# pyinstaller>=6.5

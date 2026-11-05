@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# weights ของโมเดล (ดาวน์โหลดใหม่ได้เอง) และผลลัพธ์ที่ผู้ใช้สร้าง
+backend/models/*
+!backend/models/.gitkeep
+backend/outputs/
+
+# แพ็กเกจเดสก์ท็อป
+build/
+dist/
+*.spec
