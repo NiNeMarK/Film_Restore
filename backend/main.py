@@ -36,7 +36,7 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from backend.core import gpu as gpu_mod
@@ -304,6 +304,27 @@ def create_app(with_ui: bool = True) -> FastAPI:
             media_type="image/jpeg",
             headers={"Cache-Control": "no-store"},
         )
+
+    @app.get("/download/{job}/{name}", include_in_schema=False)
+    def download(job: str, name: str):
+        """ดาวน์โหลดไฟล์ผลลัพธ์เป็นไฟล์แนบ — ตั้งชื่อไฟล์ให้อ่านง่าย
+
+        ใช้แทนลิงก์ /files ตรง ๆ เพราะเบราว์เซอร์/WebView2 จะบันทึกเป็นไฟล์แนบ
+        (เดิมกดดาวน์โหลดแล้วเงียบ เพราะ pywebview ปิด ALLOW_DOWNLOADS ไว้)
+        """
+        safe_job = Path(job).name
+        safe_name = Path(name).name
+        if safe_job in ("", ".", "..") or safe_name in ("", ".", ".."):
+            raise HTTPException(status_code=400, detail="พาธไม่ถูกต้อง")
+
+        root = OUTPUT_DIR.resolve()
+        path = (root / safe_job / safe_name).resolve()
+        if not path.is_file() or root not in path.parents:
+            raise HTTPException(status_code=404, detail="ไม่พบไฟล์")
+
+        stem = Path(safe_name).stem
+        suffix = Path(safe_name).suffix or ".png"
+        return FileResponse(path, filename=f"film-restore_{safe_job}_{stem}{suffix}")
 
     @app.websocket("/ws/restore")
     async def ws_restore(websocket: WebSocket):

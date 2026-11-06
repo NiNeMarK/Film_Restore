@@ -122,11 +122,15 @@ export default function ResultCard({
 
       {result && (
         <div className="result-actions">
-          <a href={result.result_url} download>
+          <a
+            href={`/download/${result.job}/result.png`}
+            download={`film-restore_${result.job}.png`}
+            className="download-link"
+          >
             ดาวน์โหลดผลลัพธ์
           </a>
-          <a href={`/files/${result.job}/settings.json`} target="_blank" rel="noreferrer">
-            ดู settings.json
+          <a href={`/download/${result.job}/settings.json`} download={`film-restore_${result.job}_settings.json`}>
+            settings.json
           </a>
           <button type="button" className="link-button" onClick={() => onApplySettings(result)}>
             ใช้ค่านี้กับการตั้งค่า

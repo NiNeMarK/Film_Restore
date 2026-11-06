@@ -84,6 +84,12 @@ def main() -> None:
             "หรือใช้โหมดเว็บ: python backend/main.py"
         ) from exc
 
+    # ปิดไว้โดยค่าเริ่มต้นใน pywebview — ถ้าไม่เปิด ปุ่ม "ดาวน์โหลด" จะเงียบ (ไม่มีอะไรเกิดขึ้น)
+    try:
+        webview.settings["ALLOW_DOWNLOADS"] = True
+    except Exception:  # pragma: no cover - pywebview รุ่นใหม่อาจเปลี่ยนวิธีตั้งค่า
+        pass
+
     port = _free_port()
     config = uvicorn.Config(create_app(), host=HOST, port=port, log_level="warning")
     server = uvicorn.Server(config)
