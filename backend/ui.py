@@ -210,6 +210,28 @@ body { background: #f5ebe0 !important; }
   overflow: hidden;
   background: #f0e4d0 !important;
 }
+/* ตอนยังไม่มีผลลัพธ์: ซ่อนไอคอนจาง ๆ แล้วเขียนคำใบ้กลางกรอบแทน */
+.fr-card--compare { position: relative !important; }
+.fr-card--compare:not(:has(img[src]))::after {
+  content: "ผลลัพธ์จะแสดงที่นี่ — เลือกภาพแล้วกด «ฟื้นฟูภาพ»";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #b39a76;
+  font-size: .92rem;
+  letter-spacing: .01em;
+  pointer-events: none;
+}
+/* แถบผลแต่ละขั้นซ่อนไว้จนกว่าจะมีผลจริง */
+.fr-card--plus__gallery:not(:has(img[src])) { display: none !important; }
+.fr-card--plus__gallery ::-webkit-scrollbar { display: none !important; }
+.fr-card--plus__gallery .grid-wrap { overflow-x: hidden !important; }
+.fr-card .image-slider::-webkit-scrollbar { display: none !important; }
+/* ซ่อนไอคอน placeholder ของสไลเดอร์ตอนยังไม่มีภาพ (ใช้ข้อความของเราแทน) */
+.fr-card--compare .empty { background: transparent !important; }
+.fr-card--compare .empty .icon { display: none !important; }
 .fr-card .gallery-item { border-radius: 2px !important; border: 1px solid #d4c4a8 !important; }
 .fr-card .caption { font-size: .7rem !important; color: #7a6344 !important; }
 .fr-log textarea {
@@ -446,8 +468,8 @@ def build_ui(info: gpu_mod.GPUInfo | None = None):
                     )
                     stages = gr.Gallery(
                         label="",
-                        columns=6,
-                        height=76,
+                        columns=8,
+                        height=70,
                         object_fit="cover",
                         container=False,
                         elem_classes="fr-card--plus__gallery",
