@@ -9,11 +9,16 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from .core import gpu as gpu_mod
 from .core.image_io import crop_film_border, load_image, resize_max
 from .core.model_manager import get_manager
 from .pipeline.engine import Engine
 from .pipeline.presets import PRESET_LABELS, PRESET_NOTES, PRESETS, get_preset
+
+# หน้าเว็บ React (เฟส 3) — ถ้า build ไว้แล้วจะโชว์ลิงก์ไปที่ /app
+_REACT_APP = Path(__file__).resolve().parents[1] / "frontend" / "dist" / "index.html"
 
 _INVERT_CHOICES = [("สี (C-41)", "color"), ("ขาวดำ", "bw"), ("ไม่กลับสี", "none")]
 _UPSCALE_CHOICES = [("ปิด", 1), ("x2", 2), ("x4", 4)]
@@ -89,6 +94,8 @@ body { background: #f5ebe0 !important; }
 }
 .fr-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: #c89b4b; }
 .fr-pill.warn .dot { background: #a0522d; }
+.fr-pill-link { text-decoration: none; color: #a07050 !important; border-style: dashed; }
+.fr-pill-link:hover { background: #efe1c8; }
 
 /* ---------- cards ---------- */
 .fr-card {
@@ -306,6 +313,11 @@ def _head_html(info: gpu_mod.GPUInfo) -> str:
     ]
     if info.backend == "cpu":
         pills.insert(1, '<span class="fr-pill warn"><span class="dot"></span>CPU Mode</span>')
+    if _REACT_APP.is_file():
+        pills.append(
+            '<a class="fr-pill fr-pill-link" href="/app/" target="_blank" '
+            'rel="noreferrer">หน้าใหม่ (React) →</a>'
+        )
 
     return (
         '<div class="fr-head"><div>'

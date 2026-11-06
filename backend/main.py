@@ -48,6 +48,8 @@ from backend.pipeline.presets import PRESET_LABELS, PRESET_NOTES, PRESETS, get_p
 
 # โหมดซอร์ส = backend/outputs, โหมด .exe = %LOCALAPPDATA%\FilmRestore\outputs
 OUTPUT_DIR = paths.outputs_dir()
+# หน้าเว็บ React (เฟส 3) ที่ build แล้ว — ถ้ามีจะเสิร์ฟที่ /app
+FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend" / "dist"
 UPLOAD_DIR = OUTPUT_DIR / "uploads"
 ALLOWED_EXTS = IMAGE_EXTS | RAW_EXTS
 
@@ -187,6 +189,14 @@ def create_app(with_ui: bool = True) -> FastAPI:
 
     app = FastAPI(title="Film Restore", version="0.1.0")
     app.mount("/files", StaticFiles(directory=str(OUTPUT_DIR)), name="files")
+
+    # หน้าเว็บ React (ถ้า build ไว้แล้ว) — ต้อง mount ก่อน Gradio ที่ "/"
+    if (FRONTEND_DIR / "index.html").is_file():
+        app.mount(
+            "/app",
+            StaticFiles(directory=str(FRONTEND_DIR), html=True),
+            name="film-restore-app",
+        )
 
     @app.get("/api/health")
     def health():

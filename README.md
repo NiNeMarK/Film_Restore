@@ -31,6 +31,23 @@ pyinstaller --noconfirm FilmRestore.spec     # ~5 นาที -> dist\FilmResto
 ถ้าไม่มี GPU หรือยังไม่ติดตั้งโมเดล โปรแกรมยังใช้งานได้: ขั้นที่ต้องใช้โมเดลจะถูกข้าม
 พร้อมแจ้งเตือนในหน้าจอ ส่วน upscale จะใช้ Lanczos แทน Real-ESRGAN
 
+## หน้าเว็บ React (เฟส 3)
+
+หน้าใหม่ใน `frontend/` (React + Vite) เสิร์ฟที่ **`/app`** — Gradio ยังอยู่ที่ `/` ระหว่างพัฒนา
+ทั้งสองหน้าใช้ API/WebSocket ชุดเดียวกัน (`/api/*`, `/ws/restore`)
+
+```bash
+cd frontend
+pnpm install
+pnpm dev      # http://127.0.0.1:5175 (proxy /api, /files, /ws ไปที่ backend พอร์ต 7860)
+pnpm build    # ได้ frontend/dist — backend จะเสิร์ฟที่ /app ให้เองอัตโนมัติ
+```
+
+![หน้าเว็บ React](/docs/screenshot-react.png)
+
+เปิดได้จากปุ่ม "หน้าใหม่ (React)" มุมขวาบนของหน้าเดิม หรือเข้า `http://localhost:7860/app/` ตรง ๆ
+ถ้าโฟลเดอร์ `frontend/dist` ยังไม่มี ระบบจะข้ามการ mount นี้ไป (เหลือแค่หน้า Gradio)
+
 ## ส่วนประกอบ
 
 | ไฟล์ | หน้าที่ |
@@ -125,7 +142,8 @@ python backend/tools/evaluate.py \
 - **เฟส 1:** film_invert, color_fix, engine + presets, Gradio UI, ต่อ DDColor / Real-ESRGAN /
   CodeFormer (หลัก) + GFPGAN (สำรอง) เรียบร้อย — CodeFormer ใช้ไลเซนส์ NTU S-Lab 1.0 (ใช้ส่วนตัวได้)
 - **เฟส 2:** scratch (ตรวจรอย + LaMa), denoise ด้วย SCUNet, gpu.py (VRAM/fp16/tiling) เรียบร้อย
-- **เฟส 3:** Frontend React — ยังไม่ได้ทำ (ใช้ Gradio ไปก่อน)
+- **เฟส 3:** Frontend React — เริ่มแล้ว ใช้งานได้ที่ `/app` (อัปโหลด → เลือกโหมด → กดฟื้นฟู →
+  สไลเดอร์เทียบก่อน/หลัง + ดูผลทีละขั้น, มี progress ผ่าน WebSocket) ยังไม่สลับเป็นหน้าหลัก
 - **เฟส 4:** เดสก์ท็อปเรียบร้อย — `desktop.py` (pywebview) และแพ็กเป็น .exe ด้วย `FilmRestore.spec`
   (onedir, ทดสอบบน RTX 3060: เปิดโปรแกรม ~12 วิ, งานแรกมีดาวน์โหลด weights, งานถัดไปเร็วตามปกติ)
 - **เฟส 5:** พู่กันระบุสี / Diffusion / fine-tune — ยังไม่ได้ทำ

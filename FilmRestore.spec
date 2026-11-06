@@ -41,6 +41,12 @@ datas += copy_metadata("gradio_client")
 for _source in glob.glob(os.path.join(SPECPATH, "backend", "**", "*.py"), recursive=True):
     datas.append((_source, os.path.relpath(os.path.dirname(_source), SPECPATH)))
 
+# หน้าเว็บ React (เฟส 3) ที่ build แล้ว — .exe จะเสิร์ฟที่ /app
+# สร้างก่อนแพ็กด้วย: cd frontend && pnpm build
+for _source in glob.glob(os.path.join(SPECPATH, "frontend", "dist", "**", "*"), recursive=True):
+    if os.path.isfile(_source):
+        datas.append((_source, os.path.relpath(os.path.dirname(_source), SPECPATH)))
+
 # torchvision 0.29 เปลี่ยนชื่อ native module เป็น _C_stable / image_stable
 # ซึ่ง hook มาตรฐานหาไม่เจอ (.pyd และ dll ของ torchvision จึงหายไปทั้งชุด)
 binaries = []
