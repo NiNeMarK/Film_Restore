@@ -1,9 +1,9 @@
 """หน้าเว็บด้วย Gradio (เฟส 1 — เน้นภาพ)
 
-- ภาพต้นฉบับย่อไว้	 OpenGL|
-- ไม่มี sidebar/navigator
-- ช่องอุปกรณ์/โมเดลยุบรวมเป็นแถวย่อยท้ายหัว
-- ผลลัพธ์ใหญ่ในกลาง, รูปที่เลือกไว้แสดงใต้ผลลัพธ์
+- หัวเรื่องแถวเดียว + ป้ายสถานะเครื่อง/โมเดลชิดขวา
+- สองคอลัมน์: ซ้าย = นำเข้าภาพ + ตั้งค่า, ขวา = ผลลัพธ์ (สไลเดอร์เทียบก่อน/หลัง)
+  จัดให้ทั้งหน้าแสดงในหน้าต่างเดสก์ท็อป 1320×900 ได้โดยไม่ต้องเลื่อนจอ
+- ตั้งค่าที่ไม่ค่อยได้แตะพับไว้ใน accordion, log ย่อเหลือ 3 บรรทัด
 - โทนฟิล์มอุ่น ๆ (cream / warm gray / amber)
 """
 
@@ -24,25 +24,35 @@ body { background: #f5ebe0 !important; }
 .gradio-container {
   max-width: 1400px !important;
   margin: 0 auto !important;
-  padding: 20px 24px 32px !important;
+  padding: 8px 20px 8px !important;
   background: transparent !important;
   font-family: "IBM Plex Serif Thai", "Noto Serif Thai", "Sarabun",
                "Segoe UI", "Leelawadee UI", serif !important;
 }
 
-.fr-shell { gap: 20px !important; align-items: flex-start !important; }
-.fr-main { gap: 20px !important; }
+/* สองคอลัมน์: ซ้ายนำเข้า/ตั้งค่า, ขวาผลลัพธ์ — ชิดบนและไม่ยืดสูงตามกัน */
+.fr-main { gap: 12px !important; align-items: flex-start !important; }
+.fr-side { gap: 10px !important; min-width: 0 !important; }
+.fr-card { gap: 8px !important; }
+/* Gradio ใส่ padding ให้ .main เอง — ตัดออกเพื่อให้เนื้อหาชิดขอบบน */
+.gradio-container > .main, .gradio-container .app { padding: 0 !important; gap: 0 !important; }
+
+/* แถวหัวการ์ดไม่ต้องมี padding ของ Gradio (ประหยัดความสูง) */
+.fr-headwrap { padding: 0 !important; min-height: 0 !important; }
+.fr-headwrap > div, .fr-headwrap .prose { margin: 0 !important; }
+.fr-card .html-container { padding: 0 !important; min-height: 0 !important; }
+.fr-import { gap: 10px !important; align-items: stretch !important; max-height: 104px; }
 
 /* ---------- header ---------- */
 .fr-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 0 2px 6px;
+  gap: 12px;
+  padding: 0 2px 8px;
   border-bottom: 1px solid #d4c4a8;
-  margin-bottom: 18px;
+  margin-bottom: 6px;
 }
 .fr-kicker {
   font-size: .62rem;
@@ -52,22 +62,22 @@ body { background: #f5ebe0 !important; }
   color: #b8956a;
 }
 .fr-head h1 {
-  margin: 2px 0 4px;
+  margin: 0 0 2px;
   padding: 0;
-  font-size: 1.6rem;
+  font-size: 1.32rem;
   font-weight: 700;
-  line-height: 1.4;
+  line-height: 1.3;
   letter-spacing: -.01em;
   color: #2c1810 !important;
   font-family: "IBM Plex Serif Thai", "Noto Serif Thai", serif !important;
 }
-.fr-head p { margin: 0; font-size: .85rem; color: #8b7355 !important; }
+.fr-head p { margin: 0; font-size: .78rem; color: #8b7355 !important; }
 .fr-head-pills { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 4px; }
 .fr-pill {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 10px;
+  padding: 3px 9px;
   border: 1px solid #d4c4a8;
   border-radius: 2px;
   background: #f5ebe0;
@@ -85,20 +95,29 @@ body { background: #f5ebe0 !important; }
   background: #faf3e6 !important;
   border: 1px solid #d4c4a8 !important;
   border-radius: 4px !important;
-  padding: 16px 18px !important;
+  padding: 10px 14px !important;
   box-shadow: 0 4px 12px rgba(90, 60, 30, .12), 0 1px 3px rgba(90, 60, 30, .08) !important;
 }
 .fr-card-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
   border-bottom: 1px solid #e0d0b8;
 }
-.fr-card-title { font-size: .95rem; font-weight: 700; color: #2c1810; font-family: "IBM Plex Serif Thai", "Noto Serif Thai", serif !important; }
-.fr-hint { font-size: .72rem; color: #9a7f5c; }
+.fr-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .92rem;
+  font-weight: 700;
+  color: #2c1810;
+  font-family: "IBM Plex Serif Thai", "Noto Serif Thai", serif !important;
+}
+.fr-card-title svg { width: 15px; height: 15px; color: #a07050; flex: none; }
+.fr-hint { font-size: .7rem; color: #9a7f5c; }
 
 /* บัตรที่มีกรดฟิล์มอุ่น ๆ */
 .fr-card--warm {
@@ -125,11 +144,39 @@ body { background: #f5ebe0 !important; }
 #fr-run:hover { transform: translateY(-2px); filter: brightness(1.05); box-shadow: 0 6px 12px rgba(60, 40, 20, .4) !important; }
 
 /* ---------- uploads ---------- */
-.fr-uploader .wrap { background: #f0e4d0 !important; border: 1px dashed #b8a080 !important; border-radius: 2px !important; }
+.fr-uploader { min-height: 0 !important; height: auto !important; max-height: none !important; }
+.fr-uploader > .wrap {
+  background: #f0e4d0 !important;
+  border: 1px dashed #b8a080 !important;
+  border-radius: 2px !important;
+  min-height: 0 !important;
+}
+/* Gradio ตั้งความสูงช่องลากไฟล์ไว้ 240px — ย่อลงให้พอดีการ์ด
+   และซ่อนข้อความ "Drop File Here" ข้างใน (ใช้ label ด้านบนแทน) */
+.fr-uploader .upload-container {
+  min-height: 96px !important;
+  height: 96px !important;
+  background: #f0e4d0 !important;
+  border: 1px dashed #b8a080 !important;
+}
+.fr-uploader .upload-container .wrap { display: none !important; }
 .fr-uploader .wrap:hover { background: #e8d8c0 !important; }
 .fr-preview { border-radius: 2px !important; border: 1px solid #d4c4a8 !important; }
+.fr-preview .image-container { min-height: 0 !important; }
 
 /* ---------- controls ---------- */
+.fr-card .form { gap: 8px !important; }
+.fr-preset .wrap { gap: 2px 16px !important; }
+.fr-preset label { font-size: .84rem !important; }
+.fr-preset label > span { padding: 3px 0 !important; }
+.fr-note {
+  font-size: .74rem !important;
+  color: #8b7355 !important;
+  margin: -2px 0 2px !important;
+  line-height: 1.5 !important;
+}
+
+/* ---------- labels, sliders, accordions ---------- */
 .fr-card label > span, .fr-card .fr-label {
   font-size: .8rem !important;
   font-weight: 600 !important;
@@ -137,18 +184,23 @@ body { background: #f5ebe0 !important; }
 }
 .fr-card input[type="range"] { accent-color: #c89b4b; }
 .fr-card input[type="range"]::-webkit-slider-thumb { accent-color: #a07050; }
-.fr-card .block { background: transparent !important; border: 0 !important; box-shadow: none !important; }
+.fr-card .block {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+.fr-card .form { gap: 6px !important; }
 .fr-card .label-wrap {
-  padding: 12px 2px !important;
+  padding: 4px 2px !important;
   border-top: 1px solid #e0d0b8;
-  font-size: .84rem !important;
+  font-size: .82rem !important;
   font-weight: 600 !important;
   color: #2c1810 !important;
 }
 .fr-card .label-wrap:hover { color: #a07050 !important; }
 
 /* accordion */
-.gr-accordion-header { border-bottom: 1px solid #e0d0b8 !important; padding: 10px 0 !important; }
+.gr-accordion-header { border-bottom: 1px solid #e0d0b8 !important; padding: 4px 0 !important; }
 .gr-accordion-header:hover { color: #a07050 !important; }
 
 /* ---------- results ---------- */
@@ -169,6 +221,7 @@ body { background: #f5ebe0 !important; }
   font-size: .76rem !important;
   line-height: 1.7 !important;
 }
+.fr-log { border-color: #d4c4a8 !important; }
 
 /* film grain texture ใน background */
 body::before {
@@ -189,12 +242,6 @@ _ICON_UPLOAD = (
     'stroke-linecap="round" stroke-linejoin="round">'
     '<path d="M12 16V4m0 0L8 8m4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>'
 )
-_ICON_LOGO = (
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
-    'stroke-linecap="round" stroke-linejoin="round">'
-    '<rect x="3" y="4" width="18" height="16" rx="4"/><path d="M7 4v16M17 4v16"/>'
-    '<circle cx="12" cy="12" r="2.2"/></svg>'
-)
 _ICON_SETTINGS = (
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
     'stroke-linecap="round" stroke-linejoin="round">'
@@ -207,18 +254,15 @@ _ICON_IMAGE = (
     '<rect x="3" y="4" width="18" height="16" rx="4"/><circle cx="9" cy="10" r="1.8"/>'
     '<path d="m4 18 5-5 4 4 3-3 4 4"/></svg>'
 )
-_ICON_LOG = (
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
-    'stroke-linecap="round" stroke-linejoin="round">'
-    '<rect x="3" y="4" width="18" height="16" rx="4"/><path d="m7 10 3 2-3 2M13 14h4"/></svg>'
-)
 
 
-def _scroll_to(target: str) -> str:
+def _card_head(icon: str, title: str, hint: str = "") -> str:
+    """หัวการ์ด 1 บรรทัด: ไอคอน + ชื่อ + คำใบ้ชิดขวา"""
     return (
-        "document.getElementById('"
-        + target
-        + "').scrollIntoView({behavior:'smooth',block:'start'})"
+        '<div class="fr-card-head">'
+        f'<span class="fr-card-title">{icon}<span>{title}</span></span>'
+        f'<span class="fr-hint">{hint}</span>'
+        "</div>"
     )
 
 
@@ -276,80 +320,55 @@ def build_ui(info: gpu_mod.GPUInfo | None = None):
     gpu = info or gpu_mod.detect()
     default = get_preset("color_negative")
 
-    IMG_H_Q = 620  # ความสูงกรอบเปรียบเทียบก่อน/หลัง (กว้างสัดส่วนภาพ)
-
     with gr.Blocks(title="Film Restore") as demo:
-        # ไม่มี gr.Row แยก sidebar — layout เฉียงซ้ายเพียงคอลัมน์เดียว
-        with gr.Row(elem_classes="fr-shell"):
-            with gr.Column(scale=1):
-                gr.HTML(_head_html(gpu))
+        gr.HTML(_head_html(gpu))
 
-                # ---- ภาพต้นฉบับ (ย่อมาก) + ปุ่มฟื้นฟู ----
-                with gr.Row(elem_classes="fr-shell"):
-                    with gr.Column(scale=1, elem_classes="fr-card fr-card--warm"):
-                        gr.HTML(
-                            '<div class="fr-card-head">'
-                            '<span class="fr-card-title">ภาพต้นฉบับ</span>'
-                            + '<span class="fr-hint">JPG · TIFF · RAW</span></div>'
-                        )
+        # สองคอลัมน์: ซ้าย = นำเข้าภาพ + ตั้งค่า, ขวา = ผลลัพธ์ — เห็นครบในจอเดียว
+        with gr.Row(elem_classes="fr-main", equal_height=False):
+            with gr.Column(scale=4, min_width=360, elem_classes="fr-side"):
+                # ---- ภาพต้นฉบับ + ปุ่มฟื้นฟู ----
+                with gr.Column(elem_classes="fr-card fr-card--warm"):
+                    gr.HTML(
+                        _card_head(_ICON_UPLOAD, "ภาพต้นฉบับ", "JPG · TIFF · RAW"),
+                        elem_classes="fr-headwrap",
+                    )
+                    # ช่องอัปโหลดกับภาพย่อวางเคียงกัน ประหยัดความสูง
+                    with gr.Row(elem_classes="fr-import"):
                         image_in = gr.File(
                             label="ลากไฟล์มาวาง หรือคลิกเพื่อเลือก",
                             file_count="single",
+                            scale=3,
                             elem_classes="fr-uploader",
                         )
                         preview = gr.Image(
                             show_label=False,
-                            height=80,          # ภาพต้นฉบับย่อมาก
+                            height=96,
                             interactive=False,
                             type="numpy",
+                            scale=2,
+                            visible=False,      # ซ่อนไว้ก่อน แสดงเมื่อเลือกไฟล์แล้ว
                             elem_classes="fr-preview",
                         )
-                        run_btn = gr.Button(
-                            "ฟื้นฟูภาพ", variant="primary", size="lg", elem_id="fr-run"
-                        )
-
-                # ---- ผลลัพธ์ (ใหญ่) ----
-                with gr.Column(elem_classes="fr-card"):
-                    gr.HTML(
-                        '<div class="fr-card-head">'
-                        '<span class="fr-card-title">ผลลัพธ์</span>'
-                        + '<span class="fr-hint">กดสลับภาพก่อน/หลังกลางเพื่อเทียบกัน</span></div>'
-                    )
-                    compare = gr.ImageSlider(
-                        label="",
-                        height=560,
-                        container=False,
-                        elem_classes="fr-card--compare",
-                    )
-                    stages = gr.Gallery(
-                        label="",
-                        columns=3,
-                        height=100,
-                        object_fit="cover",
-                        container=False,
-                        elem_classes="fr-card--plus__gallery",
-                    )
-                    log = gr.Textbox(
-                        label="",
-                        show_label=False,
-                        lines=4,
-                        max_lines=12,
-                        elem_classes="fr-log",
+                    run_btn = gr.Button(
+                        "ฟื้นฟูภาพ", variant="primary", size="lg", elem_id="fr-run"
                     )
 
                 # ---- ตั้งค่าขั้นตอน (ยุบ/ขยายได้) ----
                 with gr.Column(elem_classes="fr-card"):
                     gr.HTML(
-                        '<div class="fr-card-head">'
-                        '<span class="fr-card-title">ตั้งค่าขั้นตอน</span>'
-                        + '<span class="fr-hint">ยุบ/ขยายแต่ละขั้นได้</span></div>'
+                        _card_head(_ICON_SETTINGS, "ตั้งค่าขั้นตอน", "เลือกโหมดแล้วปรับได้"),
+                        elem_classes="fr-headwrap",
                     )
                     preset = gr.Radio(
                         choices=[(PRESET_LABELS[key], key) for key in PRESETS],
                         value="color_negative",
-                        label="ประเภทต้นฉบับ",
+                        show_label=False,
+                        container=False,
+                        elem_classes="fr-preset",
                     )
-                    preset_note = gr.Markdown(f"*{PRESET_NOTES['color_negative']}*")
+                    preset_note = gr.Markdown(
+                        f"*{PRESET_NOTES['color_negative']}*", elem_classes="fr-note"
+                    )
                     crop = gr.Checkbox(value=True, label="ครอปขอบฟิล์ม/ขอบสแกน")
 
                     with gr.Accordion("กลับสีและแก้สี", open=False):
@@ -408,42 +427,37 @@ def build_ui(info: gpu_mod.GPUInfo | None = None):
                             0, 0.08, default["final_grain"], step=0.005, label="เติมเกรน"
                         )
 
-                # ---- รูปที่เลือกไว้แล้ว (แสดงใต้ผลลัพธ์) ----
-                with gr.Column(scale=5, elem_classes="fr-card fr-card--grade"):
+            # ---- ขวา: ผลลัพธ์ ----
+            with gr.Column(scale=7, min_width=520, elem_classes="fr-side"):
+                with gr.Column(elem_classes="fr-card"):
                     gr.HTML(
-                        '<div class="fr-card-head">'
-                        '<span class="fr-card-title">รูปที่เลือกไว้แล้ว</span>'
-                        + '<span class="fr-hint">คลิกรูปเพื่อใช้งานต่อ</span></div>'
-                    )
-                    graded = gr.Gallery(
-                        label="",
-                        columns=(1, 2, 3, 4, 5),
-                        value=(
-                            "خرج_HDR.jpg",
-                            "خرج_LQ.jpg",
-                            "خرج_HQ.jpg",
-                            "خرج_ช่วงกลาง.jpg",
-                            "out.jpg",
+                        _card_head(
+                            _ICON_IMAGE,
+                            "ผลลัพธ์",
+                            "ลากเส้นกลางภาพเพื่อเทียบก่อน/หลัง",
                         ),
-                        height=108,
-                        object_fit="cover",
-                        preview=True,
+                        elem_classes="fr-headwrap",
+                    )
+                    compare = gr.ImageSlider(
+                        label="",
+                        height=360,
                         container=False,
-                        elem_classes="fr-card--grade__gallery",
+                        elem_classes="fr-card--compare",
                     )
-
-                # ---- บันทึกการทำงาน ----
-                with gr.Column(elem_id="fr-log", elem_classes="fr-card"):
-                    gr.HTML(
-                        '<div class="fr-card-head">'
-                        + '<span class="fr-card-title">บันทึกการทำงาน</span>'
-                        + '<span class="fr-hint">โชว์ log ทีละขั้น</span></div>'
+                    stages = gr.Gallery(
+                        label="",
+                        columns=6,
+                        height=76,
+                        object_fit="cover",
+                        container=False,
+                        elem_classes="fr-card--plus__gallery",
                     )
-                    log_full = gr.Textbox(
+                    log = gr.Textbox(
                         label="",
                         show_label=False,
-                        lines=7,
-                        max_lines=18,
+                        lines=2,
+                        max_lines=6,
+                        placeholder="ยังไม่มีผลลัพธ์ — เลือกภาพทางซ้ายแล้วกด «ฟื้นฟูภาพ»",
                         elem_classes="fr-log",
                     )
 
@@ -487,14 +501,15 @@ def build_ui(info: gpu_mod.GPUInfo | None = None):
         )
 
         def show_preview(image_path):
+            """แสดงภาพย่อเมื่อเลือกไฟล์แล้ว (ซ่อน компонентเมื่อยังไม่มีไฟล์)"""
             if not image_path:
-                return None
+                return gr.update(value=None, visible=False)
             try:
                 img, _ = load_image(image_path)
             except Exception as exc:
                 raise gr.Error(f"เปิดภาพไม่ได้: {exc}") from exc
             thumb, _ = resize_max(img, 900)
-            return thumb
+            return gr.update(value=thumb, visible=True)
 
         image_in.change(show_preview, inputs=[image_in], outputs=[preview])
 
@@ -596,13 +611,5 @@ def build_ui(info: gpu_mod.GPUInfo | None = None):
             ],
             outputs=[compare, stages, log],
         )
-
-        # สายงานเสริม: แท็บผลลัพธ์วิ่งตามรูป "หลัง" ของสไลเดอร์เทียบ (ค่าที่ได้เป็นคู่ before/after)
-        def sync_graded(value):
-            if isinstance(value, (tuple, list)):
-                return value[-1] if value else None
-            return value
-
-        compare.change(sync_graded, inputs=[compare], outputs=[graded], show_progress=False)
 
     return demo
