@@ -36,12 +36,21 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from backend.core import gpu as gpu_mod
 from backend.core import paths
-from backend.core.image_io import IMAGE_EXTS, RAW_EXTS, crop_film_border, load_image, save_image
+from backend.core.image_io import (
+    IMAGE_EXTS,
+    RAW_EXTS,
+    crop_film_border,
+    load_image,
+    load_image_bytes,
+    resize_max,
+    save_image,
+    to_jpeg_bytes,
+)
 from backend.core.model_manager import get_manager
 from backend.pipeline.engine import Engine
 from backend.pipeline.presets import PRESET_LABELS, PRESET_NOTES, PRESETS, get_preset
@@ -190,13 +199,8 @@ def create_app(with_ui: bool = True) -> FastAPI:
     app = FastAPI(title="Film Restore", version="0.1.0")
     app.mount("/files", StaticFiles(directory=str(OUTPUT_DIR)), name="files")
 
-    # หน้าเว็บ React (ถ้า build ไว้แล้ว) — ต้อง mount ก่อน Gradio ที่ "/"
-    if (FRONTEND_DIR / "index.html").is_file():
-        app.mount(
-            "/app",
-            StaticFiles(directory=str(FRONTEND_DIR), html=True),
-            name="film-restore-app",
-        )
+    # มีหน้า React ที่ build ไว้แล้วหรือไม่ — ถ้ามีจะให้เป็นหน้าหลักที่ "/" และย้าย Gradio ไป "/classic"
+    react_ready = (FRONTEND_DIR / "index.html").is_file()
 
     @app.get("/api/health")
     def health():
@@ -251,6 +255,56 @@ def create_app(with_ui: bool = True) -> FastAPI:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
         return JSONResponse(payload)
 
+    @app.post("/api/preview")
+    async def preview(
+        file: UploadFile = File(...),
+        preset: str = Form("color_negative"),
+        overrides: str = Form("{}"),
+        crop_border: bool = Form(True),
+        max_side: int = Form(420),
+    ):
+        """พรีวิวเร็ว ๆ บนภาพย่อสำหรับสไลเดอร์ — ทำเฉพาะขั้นเบา ไม่โหลดโมเดล AI"""
+        if preset not in PRESETS:
+            raise HTTPException(status_code=400, detail=f"ไม่รู้จักโหมด '{preset}'")
+
+        try:
+            parsed = json.loads(overrides or "{}")
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail=f"overrides ต้องเป็น JSON: {exc}") from exc
+        if not isinstance(parsed, dict):
+            raise HTTPException(status_code=400, detail="overrides ต้องเป็น JSON object")
+
+        data = await file.read()
+        if not data:
+            raise HTTPException(status_code=400, detail="ไม่ได้รับข้อมูลภาพ")
+
+        def work() -> bytes:
+            img, _bits = load_image_bytes(data)
+            if crop_border:
+                img = crop_film_border(img)
+            img, _scale = resize_max(img, int(max(160, min(1024, max_side))))
+            # ข้ามขั้นที่ต้องใช้โมเดล/ช้า เพื่อให้ตอบกลับเร็วระดับลากสไลเดอร์
+            fast = {
+                **parsed,
+                "scratch": False,
+                "denoise": 0.0,
+                "colorize": False,
+                "upscale": 1,
+                "face": None,
+            }
+            result = Engine(preset, fast, gpu=gpu_info()).run(img)
+            return to_jpeg_bytes(result.image, quality=84)
+
+        try:
+            jpeg = await run_in_threadpool(work)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        return Response(
+            content=jpeg,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "no-store"},
+        )
+
     @app.websocket("/ws/restore")
     async def ws_restore(websocket: WebSocket):
         """client ส่ง text JSON (settings) ตามด้วย binary ภาพ — รับได้หลายงานต่อ connection
@@ -281,6 +335,11 @@ def create_app(with_ui: bool = True) -> FastAPI:
         except WebSocketDisconnect:
             return
 
+    @app.get("/classic", include_in_schema=False)
+    def classic_redirect():
+        """/classic -> /classic/ (ไม่งั้นจะได้ 404 เพราะเป็น mount)"""
+        return RedirectResponse(url="/classic/")
+
     if with_ui:
         try:
             import gradio as gr
@@ -294,7 +353,19 @@ def create_app(with_ui: bool = True) -> FastAPI:
             ) from exc
 
         app = gr.mount_gradio_app(
-            app, build_ui(gpu_info()), path="/", theme=ui_theme(), css=UI_CSS
+            app,
+            build_ui(gpu_info()),
+            path="/classic" if react_ready else "/",
+            theme=ui_theme(),
+            css=UI_CSS,
+        )
+
+    # React เป็นหน้าหลัก — mount ท้ายสุดเพื่อไม่ให้กลืน /api, /files, /ws และ /classic
+    if react_ready:
+        app.mount(
+            "/",
+            StaticFiles(directory=str(FRONTEND_DIR), html=True),
+            name="film-restore-app",
         )
 
     return app

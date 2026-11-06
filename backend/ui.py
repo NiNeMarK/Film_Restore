@@ -315,8 +315,8 @@ def _head_html(info: gpu_mod.GPUInfo) -> str:
         pills.insert(1, '<span class="fr-pill warn"><span class="dot"></span>CPU Mode</span>')
     if _REACT_APP.is_file():
         pills.append(
-            '<a class="fr-pill fr-pill-link" href="/app/" target="_blank" '
-            'rel="noreferrer">หน้าใหม่ (React) →</a>'
+            '<a class="fr-pill fr-pill-link" href="/" rel="noreferrer">'
+            "หน้าแรก (React) →</a>"
         )
 
     return (

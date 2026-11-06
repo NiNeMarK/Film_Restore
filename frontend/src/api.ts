@@ -40,6 +40,33 @@ export type RunOptions = {
   cropBorder: boolean;
 };
 
+/** พรีวิวเร็ว ๆ บนภาพย่อ (เฉพาะขั้นเบา ไม่ใช้โมเดล) — คืน object URL ของ JPEG */
+export async function previewImage(
+  file: File,
+  { preset, settings, cropBorder }: RunOptions,
+  maxSide = 420,
+): Promise<string> {
+  const form = new FormData();
+  form.append("file", file, file.name);
+  form.append("preset", preset);
+  form.append("overrides", JSON.stringify(toOverrides(settings)));
+  form.append("crop_border", String(cropBorder));
+  form.append("max_side", String(maxSide));
+
+  const res = await fetch(`${API}/api/preview`, { method: "POST", body: form });
+  if (!res.ok) {
+    let detail = `preview ${res.status}`;
+    try {
+      const data = await res.json();
+      if (data?.detail) detail = String(data.detail);
+    } catch {
+      /* ไม่ใช่ JSON */
+    }
+    throw new Error(detail);
+  }
+  return URL.createObjectURL(await res.blob());
+}
+
 /**
  * ส่งงานผ่าน WebSocket เพื่อรับความคืบหน้าระหว่างทาง
  * protocol: ส่ง text JSON (ตั้งค่า) ตามด้วย binary ภาพ แล้วรอ event progress/done/error

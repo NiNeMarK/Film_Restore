@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fetchHealth, fetchPresets, runRestore } from "./api";
+import { fetchHealth, fetchPresets, previewImage, runRestore } from "./api";
 import ImportCard from "./components/ImportCard";
+import type { ItemView } from "./components/ImportCard";
 import ResultCard from "./components/ResultCard";
 import SettingsCard from "./components/SettingsCard";
 import type { Health, JobResult, PresetsResponse, Settings } from "./types";
+
+type Item = ItemView & { file: File; result?: JobResult };
 
 const FALLBACK_SETTINGS: Settings = {
   invert: "color",
@@ -23,6 +26,34 @@ const FALLBACK_SETTINGS: Settings = {
   final_grain: 0.02,
 };
 
+let seq = 0;
+const nextId = () => `item-${Date.now().toString(36)}-${(seq += 1)}`;
+
+function toSettings(raw: Record<string, unknown>, base: Settings): Settings {
+  const num = (value: unknown, fallback: number) =>
+    typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  const bool = (value: unknown, fallback: boolean) => (typeof value === "boolean" ? value : fallback);
+  const invert = raw.invert === "color" || raw.invert === "bw" ? raw.invert : null;
+
+  return {
+    invert,
+    color_fix: bool(raw.color_fix, base.color_fix),
+    color_fix_strength: num(raw.color_fix_strength, base.color_fix_strength),
+    scratch: bool(raw.scratch, base.scratch),
+    scratch_strength: num(raw.scratch_strength, base.scratch_strength),
+    denoise: num(raw.denoise, base.denoise),
+    colorize: bool(raw.colorize, base.colorize),
+    colorize_strength: num(raw.colorize_strength, base.colorize_strength),
+    upscale: num(raw.upscale, base.upscale),
+    face: raw.face === null || raw.face === undefined ? null : num(raw.face, 0.7),
+    invert_gamma: num(raw.invert_gamma, base.invert_gamma),
+    final_wb: num(raw.final_wb, base.final_wb),
+    final_contrast: num(raw.final_contrast, base.final_contrast),
+    final_saturation: num(raw.final_saturation, base.final_saturation),
+    final_grain: num(raw.final_grain, base.final_grain),
+  };
+}
+
 function deviceLine(health: Health | null): string {
   const gpu = health?.gpu;
   if (!gpu) return "กำลังตรวจเครื่อง…";
@@ -37,15 +68,14 @@ export default function App() {
   const [presetKey, setPresetKey] = useState("color_negative");
   const [settings, setSettings] = useState<Settings>(FALLBACK_SETTINGS);
   const [cropBorder, setCropBorder] = useState(true);
-  const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [items, setItems] = useState<Item[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressText, setProgressText] = useState("");
-  const [result, setResult] = useState<JobResult | null>(null);
-  const [stageIndex, setStageIndex] = useState(-1);
-  const [error, setError] = useState<string | null>(null);
-  const lastPreview = useRef<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const previewToken = useRef(0);
 
   useEffect(() => {
     fetchHealth().then(setHealth).catch(() => setHealth(null));
@@ -58,19 +88,46 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!file) {
-      setPreviewUrl(null);
-      if (lastPreview.current) {
-        URL.revokeObjectURL(lastPreview.current);
-        lastPreview.current = null;
-      }
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  const activeItem = items.find((item) => item.id === activeId) ?? null;
+  const activeResult = activeItem?.result ?? null;
+  const [stageIndex, setStageIndex] = useState(-1);
+
+  // เปลี่ยนภาพที่เลือก → กลับไปดูผลลัพธ์สุดท้าย
+  useEffect(() => {
+    setStageIndex(-1);
+  }, [activeId]);
+
+  // พรีวิวสด ๆ บนภาพย่อ: หน่วง 350ms แล้วยิงไป /api/preview (เฉพาะขั้นเบา)
+  useEffect(() => {
+    const item = items.find((entry) => entry.id === activeId);
+    if (!item || item.status === "running") {
       return;
     }
-    const url = URL.createObjectURL(file);
-    if (lastPreview.current) URL.revokeObjectURL(lastPreview.current);
-    lastPreview.current = url;
-    setPreviewUrl(url);
-  }, [file]);
+    const token = (previewToken.current += 1);
+    const timer = window.setTimeout(() => {
+      previewImage(item.file, { preset: presetKey, settings, cropBorder })
+        .then((url) => {
+          if (previewToken.current !== token) {
+            URL.revokeObjectURL(url);
+            return;
+          }
+          setPreviewUrl((prev) => {
+            if (prev) URL.revokeObjectURL(prev);
+            return url;
+          });
+        })
+        .catch(() => {
+          /* พรีวิวพลาดไม่เป็นไร — ยังใช้ภาพต้นฉบับได้ */
+        });
+    }, 350);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, items.length, presetKey, settings, cropBorder]);
 
   const presetList = useMemo(
     () => (presets ? Object.keys(presets.labels).map((key) => ({ key, label: presets.labels[key] })) : []),
@@ -90,29 +147,109 @@ export default function App() {
     setSettings((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  const run = useCallback(async () => {
-    if (!file || running) return;
+  const addFiles = useCallback((files: File[]) => {
+    const created: Item[] = files.map((file) => ({
+      id: nextId(),
+      name: file.name,
+      size: file.size,
+      status: "queued",
+      thumb: URL.createObjectURL(file),
+      file,
+    }));
+    setItems((prev) => [...prev, ...created]);
+    setActiveId((prev) => prev ?? created[0]?.id ?? null);
+  }, []);
+
+  const removeItem = useCallback((id: string) => {
+    setItems((prev) => {
+      const target = prev.find((item) => item.id === id);
+      if (target) URL.revokeObjectURL(target.thumb);
+      const next = prev.filter((item) => item.id !== id);
+      setActiveId((current) => (current === id ? (next[0]?.id ?? null) : current));
+      return next;
+    });
+  }, []);
+
+  const applySettings = useCallback((result: JobResult) => {
+    setPresetKey(result.preset);
+    setSettings((prev) => toSettings(result.settings as unknown as Record<string, unknown>, prev));
+    setNotice(`ใช้ค่าจากภาพที่ประมวลผลแล้ว (โหมด ${result.preset_label})`);
+  }, []);
+
+  const importSettingsFile = useCallback(async (file: File) => {
+    try {
+      const data = JSON.parse(await file.text());
+      const raw = data?.settings && typeof data.settings === "object" ? data.settings : data;
+      if (typeof data?.preset === "string" && presets?.defaults[data.preset]) {
+        setPresetKey(data.preset);
+      }
+      if (raw && typeof raw === "object") {
+        setSettings((prev) => toSettings(raw as Record<string, unknown>, prev));
+        setNotice(`โหลดการตั้งค่าจาก ${file.name} แล้ว`);
+      } else {
+        setNotice("ไฟล์นี้ไม่มีการตั้งค่าให้โหลด");
+      }
+    } catch {
+      setNotice(`อ่านไฟล์ ${file.name} ไม่ได้ (ต้องเป็น JSON)`);
+    }
+  }, [presets]);
+
+  const runAll = useCallback(async () => {
+    if (running || items.length === 0) return;
+    const pending = items.filter((item) => item.status !== "done");
+    const targets = pending.length ? pending : items;
+
     setRunning(true);
-    setError(null);
     setProgress(0);
     setProgressText("กำลังเริ่ม…");
-    try {
-      const payload = await runRestore(
-        file,
-        { preset: presetKey, settings, cropBorder },
-        (value, message) => {
-          setProgress(value);
-          setProgressText(message);
-        },
+    let finished = 0;
+
+    for (const target of targets) {
+      setActiveId(target.id);
+      setItems((prev) =>
+        prev.map((item) => (item.id === target.id ? { ...item, status: "running", error: undefined } : item)),
       );
-      setResult(payload);
-      setStageIndex(-1);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setRunning(false);
+      try {
+        const payload = await runRestore(
+          target.file,
+          { preset: presetKey, settings, cropBorder },
+          (value, message) => {
+            setProgress((finished + value) / targets.length);
+            setProgressText(`${finished + 1}/${targets.length} · ${message}`);
+          },
+        );
+        setItems((prev) =>
+          prev.map((item) => (item.id === target.id ? { ...item, status: "done", result: payload } : item)),
+        );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setItems((prev) =>
+          prev.map((item) => (item.id === target.id ? { ...item, status: "error", error: message } : item)),
+        );
+      }
+      finished += 1;
+      setProgress(finished / targets.length);
     }
-  }, [cropBorder, file, presetKey, running, settings]);
+    setRunning(false);
+    setProgressText("");
+  }, [cropBorder, items, presetKey, running, settings]);
+
+  const results = useMemo(
+    () =>
+      items
+        .filter((item) => item.result)
+        .map((item) => {
+          const result = item.result as JobResult;
+          const last = result.stages[result.stages.length - 1];
+          return {
+            id: item.id,
+            thumb: last ? last.url : result.result_url,
+            label: item.name,
+            active: item.id === activeId,
+          };
+        }),
+    [activeId, items],
+  );
 
   const modelsReady = health ? health.models.filter((model) => model.downloaded).length : 0;
   const modelsTotal = health ? health.models.length : 0;
@@ -138,25 +275,27 @@ export default function App() {
             <span className="dot" />
             โมเดลพร้อม {modelsReady}/{modelsTotal}
           </span>
-          <a className="pill pill--link" href="/">
+          <a className="pill pill--link" href="/classic/">
             หน้าเดิม (Gradio)
           </a>
         </div>
       </header>
 
+      {notice && <div className="notice">{notice}</div>}
+
       <main className="grid">
         <div className="col col--left">
           <ImportCard
-            file={file}
+            items={items}
+            activeId={activeId}
             previewUrl={previewUrl}
             running={running}
             progress={progress}
             progressText={progressText}
-            onFile={(next) => {
-              setFile(next);
-              setError(null);
-            }}
-            onRun={run}
+            onAdd={addFiles}
+            onRemove={removeItem}
+            onSelect={setActiveId}
+            onRun={runAll}
           />
           <SettingsCard
             presets={presetList}
@@ -167,18 +306,22 @@ export default function App() {
             onPreset={choosePreset}
             onChange={patchSettings}
             onCrop={setCropBorder}
+            onImport={importSettingsFile}
           />
         </div>
 
         <div className="col col--right">
           <ResultCard
-            result={result}
+            result={activeResult}
             stageIndex={stageIndex}
             running={running}
             progress={progress}
             progressText={progressText}
-            error={error}
+            error={activeItem?.error ?? null}
+            results={results}
             onStage={setStageIndex}
+            onPickResult={setActiveId}
+            onApplySettings={applySettings}
           />
         </div>
       </main>

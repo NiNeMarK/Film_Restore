@@ -665,3 +665,177 @@ body::before {
   color: var(--danger);
   font-size: 0.8rem;
 }
+
+/* ---------- file list (หลายภาพ) ---------- */
+.file-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 72px;
+  overflow-y: auto;
+}
+
+.file-list li {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: #fffaf0;
+}
+
+.file-list li.is-active {
+  border-color: var(--amber-2);
+  box-shadow: 0 0 0 2px rgba(200, 155, 75, 0.25);
+}
+
+.file-row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.file-row img {
+  width: 26px;
+  height: 20px;
+  object-fit: cover;
+  border-radius: 2px;
+}
+
+.file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.file-status {
+  font-size: 0.66rem;
+  color: var(--muted-2);
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-status.is-done {
+  color: #2f7a4f;
+}
+
+.file-status.is-running {
+  color: var(--amber-2);
+}
+
+.file-status.is-error {
+  color: var(--danger);
+}
+
+/* ---------- live preview ---------- */
+.import-preview {
+  position: relative;
+  width: 132px;
+  height: 100%;
+  flex: none;
+}
+
+.import-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--card-2);
+}
+
+.preview-badge {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  padding: 1px 6px;
+  border-radius: 2px;
+  background: rgba(90, 58, 42, 0.78);
+  color: #f5ebe0;
+  font-size: 0.62rem;
+}
+
+/* ---------- results strip ---------- */
+.results-strip {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  overflow-x: auto;
+}
+
+.result-thumb {
+  position: relative;
+  flex: none;
+  width: 64px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+  background: #fffaf0;
+  cursor: pointer;
+}
+
+.result-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.result-thumb span {
+  position: absolute;
+  right: 3px;
+  bottom: 1px;
+  color: #fff;
+  font-size: 0.6rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+}
+
+.result-thumb.is-on {
+  border-color: var(--amber-2);
+  box-shadow: 0 0 0 2px rgba(200, 155, 75, 0.35);
+}
+
+/* ---------- misc ---------- */
+.link-button {
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid rgba(160, 112, 80, 0.35);
+  background: none;
+  color: var(--amber-2);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  color: var(--accent);
+}
+
+.notice {
+  padding: 6px 10px;
+  border: 1px solid #d8c6a8;
+  border-radius: 2px;
+  background: #fff6e2;
+  color: #6b5540;
+  font-size: 0.78rem;
+}

@@ -2,6 +2,8 @@ import type { JobResult } from "../types";
 import CompareSlider from "./CompareSlider";
 import { ImageIcon } from "./icons";
 
+type ResultThumb = { id: string; thumb: string; label: string; active: boolean };
+
 type Props = {
   result: JobResult | null;
   stageIndex: number;
@@ -9,16 +11,18 @@ type Props = {
   progress: number;
   progressText: string;
   error: string | null;
+  results: ResultThumb[];
   onStage: (index: number) => void;
+  onPickResult: (id: string) => void;
+  onApplySettings: (result: JobResult) => void;
 };
 
 function buildLog(result: JobResult): string {
+  const last = result.stages[result.stages.length - 1];
   const lines = [
     `โหมด: ${result.preset_label}`,
     `ต้นฉบับ: ${result.original.width}×${result.original.height} px, ${result.original.bits}-bit`,
-    `ผลลัพธ์: ${result.stages[result.stages.length - 1]?.width ?? "-"}×${
-      result.stages[result.stages.length - 1]?.height ?? "-"
-    } px`,
+    `ผลลัพธ์: ${last ? `${last.width}×${last.height}` : "-"} px`,
     `ใช้เวลา: ${result.elapsed.toFixed(1)} วินาที`,
     `อุปกรณ์: ${result.meta.device === "cpu" ? "CPU" : `${result.meta.gpu} (${result.meta.device})`}`,
     "",
@@ -39,7 +43,10 @@ export default function ResultCard({
   progress,
   progressText,
   error,
+  results,
   onStage,
+  onPickResult,
+  onApplySettings,
 }: Props) {
   const active = result && stageIndex >= 0 ? result.stages[stageIndex] : null;
 
@@ -56,10 +63,7 @@ export default function ResultCard({
       {error && <p className="error">{error}</p>}
 
       {result ? (
-        <CompareSlider
-          before={result.original_url}
-          after={active ? active.url : result.result_url}
-        />
+        <CompareSlider before={result.original_url} after={active ? active.url : result.result_url} />
       ) : (
         <div className="result-empty">
           {running ? (
@@ -94,10 +98,26 @@ export default function ResultCard({
         </div>
       )}
 
+      {results.length > 1 && (
+        <div className="results-strip" role="list" aria-label="ผลลัพธ์ทุกภาพ">
+          {results.map((item, index) => (
+            <button
+              key={item.id}
+              type="button"
+              role="listitem"
+              className={`result-thumb${item.active ? " is-on" : ""}`}
+              title={item.label}
+              onClick={() => onPickResult(item.id)}
+            >
+              <img src={item.thumb} alt={item.label} loading="lazy" />
+              <span>{index + 1}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       <pre className={`log${result ? "" : " is-empty"}`}>
-        {result
-          ? buildLog(result)
-          : "ยังไม่มีผลลัพธ์ — เลือกภาพทางซ้ายแล้วกด «ฟื้นฟูภาพ»"}
+        {result ? buildLog(result) : "ยังไม่มีผลลัพธ์ — เลือกภาพทางซ้ายแล้วกด «ฟื้นฟูภาพ»"}
       </pre>
 
       {result && (
@@ -108,9 +128,10 @@ export default function ResultCard({
           <a href={`/files/${result.job}/settings.json`} target="_blank" rel="noreferrer">
             ดู settings.json
           </a>
-          <span className="hint">
-            {active ? `กำลังดูขั้น: ${active.label}` : "กำลังดูผลลัพธ์สุดท้าย"}
-          </span>
+          <button type="button" className="link-button" onClick={() => onApplySettings(result)}>
+            ใช้ค่านี้กับการตั้งค่า
+          </button>
+          <span className="hint">{active ? `กำลังดูขั้น: ${active.label}` : "กำลังดูผลลัพธ์สุดท้าย"}</span>
         </div>
       )}
     </section>

@@ -1,4 +1,4 @@
-# Film Restore — แผนการพัฒนา
+﻿# Film Restore — แผนการพัฒนา
 
 โปรแกรมนำเข้าภาพจากฟิล์มหรือภาพพิมพ์เก่า แล้วกลับสี ลบรอย ลดเกรน ใส่สี และเพิ่มความคมชัดให้ดูสมจริง
 
@@ -200,7 +200,7 @@ PRESETS = {
 - [x] เฟส 2: scratch.py (ตรวจหารอย + LaMa)
 - [x] เฟส 2: denoise.py (SCUNet)
 - [x] เฟส 2: gpu.py (ตรวจ VRAM, fp16, tiling)
-- [ ] เฟส 3: Frontend React
+- [x] เฟส 3: Frontend React
 - [x] เฟส 4: แพ็กเป็น .exe
 - [ ] เฟส 5: พู่กันระบุสี / Diffusion / fine-tune
 

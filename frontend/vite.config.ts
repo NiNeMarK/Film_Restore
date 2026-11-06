@@ -1,10 +1,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// หน้าเว็บถูกเสิร์ฟจาก FastAPI ที่ /app (build ไปที่ frontend/dist)
+// หน้าเว็บถูกเสิร์ฟจาก FastAPI ที่ "/" (build ไปที่ frontend/dist)
+// ส่วนหน้า Gradio เดิมย้ายไปที่ /classic
 // ตอน dev (pnpm dev) ให้ proxy ไปที่ backend ที่พอร์ต 7860
 export default defineConfig({
-  base: "/app/",
+  base: "/",
   plugins: [react()],
   build: {
     outDir: "dist",

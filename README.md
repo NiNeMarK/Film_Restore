@@ -7,10 +7,12 @@
 
 ```bash
 pip install -r requirements.txt
-python backend/main.py            # เปิด http://localhost:7860
+python backend/main.py            # เปิด http://localhost:7860  (หน้า React ที่ /, หน้าเดิม Gradio ที่ /classic)
 python backend/main.py --host 0.0.0.0   # ให้มือถือในวง Wi-Fi เดียวกันเข้าได้
 python desktop.py                 # โหมดหน้าต่างโปรแกรม (pywebview) — ถ้าพอร์ต 7860 ว่างอยู่ใช้พอร์ตเดิม ไม่งั้นเลือกพอร์ตว่างให้
 ```
+
+> หน้า `/` เป็น React (ต้อง build `frontend/dist` ไว้ก่อน — ดูหัวข้อถัดไป) ถ้ายังไม่ build จะเสิร์ฟ Gradio ที่ `/` แทน
 
 ### แพ็กเป็น .exe (เฟส 4)
 
@@ -33,27 +35,36 @@ pyinstaller --noconfirm FilmRestore.spec     # ~5 นาที -> dist\FilmResto
 
 ## หน้าเว็บ React (เฟส 3)
 
-หน้าใหม่ใน `frontend/` (React + Vite) เสิร์ฟที่ **`/app`** — Gradio ยังอยู่ที่ `/` ระหว่างพัฒนา
+React + Vite ใน `frontend/` เป็น **หน้าหลักที่ `/`** ส่วน Gradio เดิมย้ายไปที่ **`/classic`**
 ทั้งสองหน้าใช้ API/WebSocket ชุดเดียวกัน (`/api/*`, `/ws/restore`)
 
 ```bash
 cd frontend
 pnpm install
 pnpm dev      # http://127.0.0.1:5175 (proxy /api, /files, /ws ไปที่ backend พอร์ต 7860)
-pnpm build    # ได้ frontend/dist — backend จะเสิร์ฟที่ /app ให้เองอัตโนมัติ
+pnpm build    # ได้ frontend/dist — backend เสิร์ฟที่ / ให้อัตโนมัติ
 ```
 
-![หน้าเว็บ React](/docs/screenshot-react.png)
+![หน้าเว็บ React](docs/screenshot-react.png)
 
-เปิดได้จากปุ่ม "หน้าใหม่ (React)" มุมขวาบนของหน้าเดิม หรือเข้า `http://localhost:7860/app/` ตรง ๆ
-ถ้าโฟลเดอร์ `frontend/dist` ยังไม่มี ระบบจะข้ามการ mount นี้ไป (เหลือแค่หน้า Gradio)
+สิ่งที่หน้าหน้าใหม่ทำได้ (เหนือกว่า Gradio):
+
+- **หลายภาพพร้อมกัน** — ลาก/เลือกได้หลายไฟล์ แล้วกดครั้งเดียว รันทีละภาพจนครบ
+  มีแถบผลลัพธ์ด้านล่างไว้สลับดูทีละภาพ
+- **พรีวิวสด** — เลื่อนสไลเดอร์ความแรง/เปลี่ยนโหมด แล้วภาพย่ออัปเดตตามทันที
+  (ยิง `/api/preview` เฉพาะขั้นเบา ~90 ms ไม่แตะโมเดล AI)
+- **โหลดค่าเดิมกลับมาแก้ต่อ** — ปุ่ม "โหลด settings.json" หรือ "ใช้ค่านี้กับการตั้งค่า" จากผลที่เพิ่งรัน
+- สไลเดอร์เทียบก่อน/หลังแบบลากเส้น, ดูผลทีละขั้น, ดาวน์โหลดผล, เปิด `settings.json`
+
+ถ้าโฟลเดอร์ `frontend/dist` ยังไม่มี ระบบจะข้าม mount นี้และเสิร์ฟ Gradio ที่ `/` แทน
 
 ## ส่วนประกอบ
 
 | ไฟล์ | หน้าที่ |
 |---|---|
-| `backend/main.py` | FastAPI (`/api/health`, `/api/presets`, `/api/restore`) + เสิร์ฟ Gradio ที่ `/` |
-| `backend/ui.py` | หน้า Gradio: เลือกโหมด, เปิด/ปิดแต่ละขั้น, สไลเดอร์เทียบก่อน/หลัง, ดูผลทีละขั้น |
+| `backend/main.py` | FastAPI (`/api/health`, `/api/presets`, `/api/restore`, `/api/preview`) + เสิร์ฟหน้า React ที่ `/` และ Gradio ที่ `/classic` |
+| `backend/ui.py` | หน้า Gradio (เดิม): เลือกโหมด, เปิด/ปิดแต่ละขั้น, สไลเดอร์เทียบก่อน/หลัง, ดูผลทีละขั้น |
+| `frontend/` | หน้าเว็บ React + Vite (หน้าหลัก) — หลายภาพ, พรีวิวสด, โหลด settings.json |
 | `backend/pipeline/engine.py` | ร้อยขั้นตาม preset, เก็บผลทุกขั้น, บันทึกคำเตือนเมื่อโมเดลไม่พร้อม |
 | `backend/pipeline/film_invert.py` | กลับสีเนกาทีฟ + ตัดสีส้มฐานฟิล์ม (density = log10(base/img)) |
 | `backend/pipeline/color_fix.py` | แก้สีซีด/เพี้ยน + ปรับแต่งขั้นสุดท้าย (white balance, contrast, เกรน) |
@@ -84,6 +95,11 @@ curl -X POST http://localhost:7860/api/restore \
   -F "preset=color_negative" \
   -F 'overrides={"denoise":0.4,"upscale":2,"face":null}' \
   -F "crop_border=true"
+
+# พรีวิวเร็ว ๆ บนภาพย่อ (เฉพาะขั้นเบา ไม่โหลดโมเดล) — คืนไฟล์ JPEG
+curl -X POST http://localhost:7860/api/preview \
+  -F "file=@scan.jpg" -F "preset=color_negative" \
+  -F 'overrides={"color_fix_strength":0.8}' -o preview.jpg
 ```
 
 ผลลัพธ์: URL ของภาพแต่ละขั้น + `settings.json` ที่บันทึกค่าที่ใช้กับภาพนั้น (ไว้กลับมาแก้ภายหลัง)
@@ -142,8 +158,9 @@ python backend/tools/evaluate.py \
 - **เฟส 1:** film_invert, color_fix, engine + presets, Gradio UI, ต่อ DDColor / Real-ESRGAN /
   CodeFormer (หลัก) + GFPGAN (สำรอง) เรียบร้อย — CodeFormer ใช้ไลเซนส์ NTU S-Lab 1.0 (ใช้ส่วนตัวได้)
 - **เฟส 2:** scratch (ตรวจรอย + LaMa), denoise ด้วย SCUNet, gpu.py (VRAM/fp16/tiling) เรียบร้อย
-- **เฟส 3:** Frontend React — เริ่มแล้ว ใช้งานได้ที่ `/app` (อัปโหลด → เลือกโหมด → กดฟื้นฟู →
-  สไลเดอร์เทียบก่อน/หลัง + ดูผลทีละขั้น, มี progress ผ่าน WebSocket) ยังไม่สลับเป็นหน้าหลัก
+- **เฟส 3:** Frontend React เรียบร้อย — เป็นหน้าหลักที่ `/` (Gradio เดิมอยู่ที่ `/classic`)
+  มีหลายภาพพร้อมกัน, พรีวิวสดระหว่างปรับค่า, โหลด `settings.json` กลับมาแก้ต่อ,
+  สไลเดอร์เทียบก่อน/หลัง, ดูผลทีละขั้น และ progress ผ่าน WebSocket
 - **เฟส 4:** เดสก์ท็อปเรียบร้อย — `desktop.py` (pywebview) และแพ็กเป็น .exe ด้วย `FilmRestore.spec`
   (onedir, ทดสอบบน RTX 3060: เปิดโปรแกรม ~12 วิ, งานแรกมีดาวน์โหลด weights, งานถัดไปเร็วตามปกติ)
 - **เฟส 5:** พู่กันระบุสี / Diffusion / fine-tune — ยังไม่ได้ทำ

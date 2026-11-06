@@ -68,6 +68,28 @@ def load_image(path: str | Path) -> tuple[np.ndarray, int]:
     return _to_rgb(raw), bits
 
 
+def load_image_bytes(data: bytes) -> tuple[np.ndarray, int]:
+    """อ่านภาพจาก bytes (ใช้กับพรีวิวที่ไม่อยากเขียนลงดิสก์)"""
+    if not data:
+        raise RuntimeError("ไม่ได้รับข้อมูลภาพ")
+    arr = np.frombuffer(data, dtype=np.uint8)
+    raw = cv2.imdecode(arr, cv2.IMREAD_UNCHANGED)
+    if raw is None:
+        raise RuntimeError("เปิดไฟล์ภาพไม่ได้ (รูปแบบไม่รองรับ)")
+    bits = 16 if raw.dtype == np.uint16 else 8
+    return _to_rgb(raw), bits
+
+
+def to_jpeg_bytes(img: np.ndarray, quality: int = 85) -> bytes:
+    """แปลงภาพ float32 RGB 0–1 เป็น JPEG bytes (สำหรับพรีวิว)"""
+    bgr = np.clip(img, 0.0, 1.0)[..., ::-1]
+    arr = (bgr * 255.0 + 0.5).astype(np.uint8)
+    ok, buf = cv2.imencode(".jpg", arr, [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)])
+    if not ok:
+        raise RuntimeError("เข้ารหัส JPEG ไม่สำเร็จ")
+    return buf.tobytes()
+
+
 def save_image(path: str | Path, img: np.ndarray, bits: int = 8) -> Path:
     """บันทึกภาพ float32 RGB 0–1 เป็นไฟล์ (รองรับพาธอักษรไทย)"""
     path = Path(path)

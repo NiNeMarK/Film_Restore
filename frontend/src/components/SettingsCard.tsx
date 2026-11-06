@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import type { Settings } from "../types";
 import { SettingsIcon } from "./icons";
 
@@ -10,6 +11,7 @@ type Props = {
   onPreset: (key: string) => void;
   onChange: (patch: Partial<Settings>) => void;
   onCrop: (value: boolean) => void;
+  onImport: (file: File) => void;
 };
 
 type SliderFieldProps = {
@@ -67,8 +69,10 @@ export default function SettingsCard({
   onPreset,
   onChange,
   onCrop,
+  onImport,
 }: Props) {
   const faceOn = settings.face !== null;
+  const jsonRef = useRef<HTMLInputElement>(null);
 
   return (
     <section className="card">
@@ -77,7 +81,20 @@ export default function SettingsCard({
           <SettingsIcon />
           ตั้งค่าขั้นตอน
         </h2>
-        <span className="hint">เลือกโหมดแล้วปรับได้</span>
+        <button type="button" className="link-button" onClick={() => jsonRef.current?.click()}>
+          โหลด settings.json
+        </button>
+        <input
+          ref={jsonRef}
+          type="file"
+          accept=".json,application/json"
+          hidden
+          onChange={(event) => {
+            const chosen = event.target.files?.[0];
+            if (chosen) onImport(chosen);
+            event.target.value = "";
+          }}
+        />
       </header>
 
       <div className="presets" role="radiogroup" aria-label="ประเภทต้นฉบับ">
