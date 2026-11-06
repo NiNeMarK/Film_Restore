@@ -1,13 +1,13 @@
 """ดาวน์โหลด weights ครั้งแรก + lazy load (ตามแผนข้อ 6)
 
-- weights เก็บใน backend/models (ไม่เข้า git)
+- weights เก็บใน backend/models ตอนรันจากซอร์ส และ `%LOCALAPPDATA%\\FilmRestore\\models`
+  ตอนรันจาก .exe (ดู `backend/core/paths.py`) — ไม่เข้า git
 - ถ้าวางไฟล์ชื่อเดียวกับใน `MODEL_SPECS` ไว้ในโฟลเดอร์นั้นแล้ว จะใช้ไฟล์ในเครื่องโดยไม่ดาวน์โหลด
 - เปลี่ยนโฟลเดอร์ได้ด้วย env `FILM_RESTORE_MODELS`
 """
 
 from __future__ import annotations
 
-import os
 import shutil
 import threading
 import urllib.request
@@ -15,10 +15,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
-DEFAULT_MODELS_DIR = Path(
-    os.environ.get("FILM_RESTORE_MODELS")
-    or (Path(__file__).resolve().parents[1] / "models")
-)
+from . import paths
+
+DEFAULT_MODELS_DIR = paths.models_dir()
 
 ProgressFn = Optional[Callable[[str, int, int], None]]
 
@@ -56,6 +55,24 @@ MODEL_SPECS: dict[str, ModelSpec] = {
         license="BSD-3-Clause",
         note="Upscale x4",
         approx_mb=64,
+    ),
+    "codeformer": ModelSpec(
+        key="codeformer",
+        filename="codeformer.pth",
+        label="CodeFormer",
+        url="https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/codeformer.pth",
+        license="NTU S-Lab License 1.0 (ใช้ส่วนตัว/ไม่เชิงพาณิชย์)",
+        note="ฟื้นฟูใบหน้า ปรับ fidelity (w) ได้",
+        approx_mb=359,
+    ),
+    "scunet_color_real_psnr": ModelSpec(
+        key="scunet_color_real_psnr",
+        filename="scunet_color_real_psnr.pth",
+        label="SCUNet (color, real noise)",
+        url="https://github.com/cszn/KAIR/releases/download/v1.0/scunet_color_real_psnr.pth",
+        license="Apache-2.0",
+        note="ลดเกรน/นอยส์ภาพสีจากฟิล์มและภาพพิมพ์",
+        approx_mb=69,
     ),
     "gfpgan_v14": ModelSpec(
         key="gfpgan_v14",

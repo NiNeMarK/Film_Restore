@@ -1,8 +1,10 @@
-"""หน้าเว็บด้วย Gradio (เฟส 1)
+"""หน้าเว็บด้วย Gradio (เฟส 1 — เน้นภาพ)
 
-- เลือกประเภทฟิล์มแล้วค่าเริ่มต้นของทุกขั้นเปลี่ยนตาม
-- เปิด/ปิดแต่ละขั้นและปรับความแรงได้
-- สไลเดอร์เทียบก่อน/หลัง + ดูผลทีละขั้น
+- ภาพต้นฉบับย่อไว้	 OpenGL|
+- ไม่มี sidebar/navigator
+- ช่องอุปกรณ์/โมเดลยุบรวมเป็นแถวย่อยท้ายหัว
+- ผลลัพธ์ใหญ่ในกลาง, รูปที่เลือกไว้แสดงใต้ผลลัพธ์
+- โทนฟิล์มอุ่น ๆ (cream / warm gray / amber)
 """
 
 from __future__ import annotations
@@ -16,26 +18,256 @@ from .pipeline.presets import PRESET_LABELS, PRESET_NOTES, PRESETS, get_preset
 _INVERT_CHOICES = [("สี (C-41)", "color"), ("ขาวดำ", "bw"), ("ไม่กลับสี", "none")]
 _UPSCALE_CHOICES = [("ปิด", 1), ("x2", 2), ("x4", 4)]
 
+CSS = """
+body { background: #f5ebe0 !important; }
 
-def _status_markdown(info: gpu_mod.GPUInfo) -> str:
-    if info.backend == "cpu":
-        device = "CPU"
-    else:
-        device = f"{info.name} ({info.total_vram_gb:.1f} GB) — {info.device}"
-        device += " · fp16" if info.fp16 else " · fp32"
-        if info.tile_size:
-            device += f" · tile {info.tile_size}px"
+.gradio-container {
+  max-width: 1400px !important;
+  margin: 0 auto !important;
+  padding: 20px 24px 32px !important;
+  background: transparent !important;
+  font-family: "IBM Plex Serif Thai", "Noto Serif Thai", "Sarabun",
+               "Segoe UI", "Leelawadee UI", serif !important;
+}
 
+.fr-shell { gap: 20px !important; align-items: flex-start !important; }
+.fr-main { gap: 20px !important; }
+
+/* ---------- header ---------- */
+.fr-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 2px 6px;
+  border-bottom: 1px solid #d4c4a8;
+  margin-bottom: 18px;
+}
+.fr-kicker {
+  font-size: .62rem;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #b8956a;
+}
+.fr-head h1 {
+  margin: 2px 0 4px;
+  padding: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: -.01em;
+  color: #2c1810 !important;
+  font-family: "IBM Plex Serif Thai", "Noto Serif Thai", serif !important;
+}
+.fr-head p { margin: 0; font-size: .85rem; color: #8b7355 !important; }
+.fr-head-pills { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 4px; }
+.fr-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid #d4c4a8;
+  border-radius: 2px;
+  background: #f5ebe0;
+  font-size: .72rem;
+  font-weight: 600;
+  color: #5a4530;
+  white-space: nowrap;
+  font-family: "IBM Plex Sans Thai", "Noto Sans Thai", sans-serif !important;
+}
+.fr-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: #c89b4b; }
+.fr-pill.warn .dot { background: #a0522d; }
+
+/* ---------- cards ---------- */
+.fr-card {
+  background: #faf3e6 !important;
+  border: 1px solid #d4c4a8 !important;
+  border-radius: 4px !important;
+  padding: 16px 18px !important;
+  box-shadow: 0 4px 12px rgba(90, 60, 30, .12), 0 1px 3px rgba(90, 60, 30, .08) !important;
+}
+.fr-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e0d0b8;
+}
+.fr-card-title { font-size: .95rem; font-weight: 700; color: #2c1810; font-family: "IBM Plex Serif Thai", "Noto Serif Thai", serif !important; }
+.fr-hint { font-size: .72rem; color: #9a7f5c; }
+
+/* บัตรที่มีกรดฟิล์มอุ่น ๆ */
+.fr-card--warm {
+  color: #2c1810 !important;
+  background: linear-gradient(180deg, #f5ebe0 0%, #efe1c8 50%, #e8d4b8 100%) !important;
+  border: 1px solid #c8b898 !important;
+}
+.fr-card--warm .fr-card-title { color: #2c1810; }
+.fr-card--warm .fr-hint { color: #7a5f3a; }
+
+#fr-run {
+  border: 0 !important;
+  border-radius: 2px !important;
+  background: #5a3a2a !important;
+  font-weight: 700 !important;
+  letter-spacing: .02em;
+  box-shadow: 0 4px 8px rgba(60, 40, 20, .3) !important;
+  color: #f5ebe0 !important;
+  transition: transform .15s ease, filter .15s ease;
+  font-size: 1rem !important;
+  padding: 12px 28px !important;
+  font-family: "IBM Plex Serif Thai", "Noto Serif Thai", serif !important;
+}
+#fr-run:hover { transform: translateY(-2px); filter: brightness(1.05); box-shadow: 0 6px 12px rgba(60, 40, 20, .4) !important; }
+
+/* ---------- uploads ---------- */
+.fr-uploader .wrap { background: #f0e4d0 !important; border: 1px dashed #b8a080 !important; border-radius: 2px !important; }
+.fr-uploader .wrap:hover { background: #e8d8c0 !important; }
+.fr-preview { border-radius: 2px !important; border: 1px solid #d4c4a8 !important; }
+
+/* ---------- controls ---------- */
+.fr-card label > span, .fr-card .fr-label {
+  font-size: .8rem !important;
+  font-weight: 600 !important;
+  color: #5a4530 !important;
+}
+.fr-card input[type="range"] { accent-color: #c89b4b; }
+.fr-card input[type="range"]::-webkit-slider-thumb { accent-color: #a07050; }
+.fr-card .block { background: transparent !important; border: 0 !important; box-shadow: none !important; }
+.fr-card .label-wrap {
+  padding: 12px 2px !important;
+  border-top: 1px solid #e0d0b8;
+  font-size: .84rem !important;
+  font-weight: 600 !important;
+  color: #2c1810 !important;
+}
+.fr-card .label-wrap:hover { color: #a07050 !important; }
+
+/* accordion */
+.gr-accordion-header { border-bottom: 1px solid #e0d0b8 !important; padding: 10px 0 !important; }
+.gr-accordion-header:hover { color: #a07050 !important; }
+
+/* ---------- results ---------- */
+.fr-card .image-slider {
+  border: 1px solid #d4c4a8 !important;
+  border-radius: 2px !important;
+  overflow: hidden;
+  background: #f0e4d0 !important;
+}
+.fr-card .gallery-item { border-radius: 2px !important; border: 1px solid #d4c4a8 !important; }
+.fr-card .caption { font-size: .7rem !important; color: #7a6344 !important; }
+.fr-log textarea {
+  background: #f0e4d0 !important;
+  border: 1px solid #d4c4a8 !important;
+  border-radius: 2px !important;
+  color: #5a4530 !important;
+  font-family: "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace !important;
+  font-size: .76rem !important;
+  line-height: 1.7 !important;
+}
+
+/* film grain texture ใน background */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.5;
+}
+
+footer, .footer { display: none !important; }
+"""
+
+_ICON_UPLOAD = (
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
+    'stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M12 16V4m0 0L8 8m4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>'
+)
+_ICON_LOGO = (
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
+    'stroke-linecap="round" stroke-linejoin="round">'
+    '<rect x="3" y="4" width="18" height="16" rx="4"/><path d="M7 4v16M17 4v16"/>'
+    '<circle cx="12" cy="12" r="2.2"/></svg>'
+)
+_ICON_SETTINGS = (
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
+    'stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h9M17 17h3"/>'
+    '<circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="15" cy="17" r="2"/></svg>'
+)
+_ICON_IMAGE = (
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
+    'stroke-linecap="round" stroke-linejoin="round">'
+    '<rect x="3" y="4" width="18" height="16" rx="4"/><circle cx="9" cy="10" r="1.8"/>'
+    '<path d="m4 18 5-5 4 4 3-3 4 4"/></svg>'
+)
+_ICON_LOG = (
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
+    'stroke-linecap="round" stroke-linejoin="round">'
+    '<rect x="3" y="4" width="18" height="16" rx="4"/><path d="m7 10 3 2-3 2M13 14h4"/></svg>'
+)
+
+
+def _scroll_to(target: str) -> str:
+    return (
+        "document.getElementById('"
+        + target
+        + "').scrollIntoView({behavior:'smooth',block:'start'})"
+    )
+
+
+def _head_html(info: gpu_mod.GPUInfo) -> str:
     models = get_manager().status()
-    ready = [m["label"] for m in models if m["downloaded"]]
-    pending = len(models) - len(ready)
-    model_line = f"โมเดลพร้อมใช้: {', '.join(ready)}" if ready else "ยังไม่มี weights ในเครื่อง"
-    if pending:
-        model_line += f" · อีก {pending} โมเดลจะดาวน์โหลดตอนใช้ครั้งแรก"
+    ready = sum(1 for model in models if model["downloaded"])
+    total = len(models)
 
-    lines = [f"**อุปกรณ์:** {device}", f"**{model_line}**"]
-    lines += [f"- {note}" for note in info.notes]
-    return "\n".join(lines)
+    device_line = (
+        f"{info.name.replace('NVIDIA GeForce ', '')} · {info.total_vram_gb:.1f} GB · "
+        f"{'fp16' if info.fp16 else 'fp32'}"
+        if info.backend != "cpu"
+        else "CPU"
+    )
+    pills = [
+        '<span class="fr-pill"><span class="dot"></span>ไม่ใช้คลาวด์</span>',
+        f'<span class="fr-pill"><span class="dot"></span>{device_line}</span>',
+        f'<span class="fr-pill"><span class="dot"></span>โมเดลพร้อม {ready}/{total}</span>',
+    ]
+    if info.backend == "cpu":
+        pills.insert(1, '<span class="fr-pill warn"><span class="dot"></span>CPU Mode</span>')
+
+    return (
+        '<div class="fr-head"><div>'
+        '<div class="fr-kicker">Local Studio</div>'
+        "<h1>ห้องฟื้นฟูภาพฟิล์ม</h1>"
+        "<p>กลับสี ซ่อมรอย ลดเกรน คืนใบหน้า — ภาพทั้งหมดประมวลผลในเครื่องคุณ</p>"
+        "</div>"
+        '<div class="fr-head-pills">' + "".join(pills) + "</div></div>"
+        "<div style='margin-top:12px;'></div>"
+    )
+
+
+def theme():
+    """ธีมสำหรับ Gradio — ใช้ css ร่วมด้วย"""
+    import gradio as gr
+
+    return gr.themes.Soft(
+        primary_hue=gr.themes.colors.amber,
+        secondary_hue=gr.themes.colors.amber,
+        neutral_hue=gr.themes.colors.gray,
+        radius_size=gr.themes.sizes.radius_lg,
+        font=[
+            gr.themes.GoogleFont("IBM Plex Sans Thai"),
+            "Noto Sans Thai",
+            "Segoe UI",
+            "sans-serif",
+        ],
+    )
 
 
 def build_ui(info: gpu_mod.GPUInfo | None = None):
@@ -44,75 +276,178 @@ def build_ui(info: gpu_mod.GPUInfo | None = None):
     gpu = info or gpu_mod.detect()
     default = get_preset("color_negative")
 
+    IMG_H_Q = 620  # ความสูงกรอบเปรียบเทียบก่อน/หลัง (กว้างสัดส่วนภาพ)
+
     with gr.Blocks(title="Film Restore") as demo:
-        gr.Markdown(
-            "# Film Restore\n"
-            "นำเข้าภาพจากฟิล์มหรือภาพพิมพ์เก่า แล้วกลับสี ลบรอย ลดเกรน ใส่สี และเพิ่มความคมชัด"
-        )
-        gr.Markdown(_status_markdown(gpu))
-
-        with gr.Row():
+        # ไม่มี gr.Row แยก sidebar — layout เฉียงซ้ายเพียงคอลัมน์เดียว
+        with gr.Row(elem_classes="fr-shell"):
             with gr.Column(scale=1):
-                # ใช้ gr.File + ตัวอย่างภาพที่แปลงเป็น 8-bit เอง
-                # เพราะเบราว์เซอร์แสดง TIFF 16-bit / RAW ไม่ได้ (จะขึ้นเป็นแถบขาด)
-                image_in = gr.File(label="ภาพต้นฉบับ (JPG / TIFF 16-bit / RAW)")
-                preview = gr.Image(
-                    label="ตัวอย่างภาพ", height=240, interactive=False, type="numpy"
-                )
-                preset = gr.Radio(
-                    choices=[(PRESET_LABELS[key], key) for key in PRESETS],
-                    value="color_negative",
-                    label="ประเภทต้นฉบับ",
-                )
-                preset_note = gr.Markdown(f"*{PRESET_NOTES['color_negative']}*")
-                crop = gr.Checkbox(value=True, label="ครอปขอบฟิล์ม/ขอบสแกน")
+                gr.HTML(_head_html(gpu))
 
-                with gr.Accordion("กลับสีและแก้สี", open=True):
-                    invert = gr.Radio(
-                        choices=_INVERT_CHOICES, value="color", label="กลับสีเนกาทีฟ"
+                # ---- ภาพต้นฉบับ (ย่อมาก) + ปุ่มฟื้นฟู ----
+                with gr.Row(elem_classes="fr-shell"):
+                    with gr.Column(scale=1, elem_classes="fr-card fr-card--warm"):
+                        gr.HTML(
+                            '<div class="fr-card-head">'
+                            '<span class="fr-card-title">ภาพต้นฉบับ</span>'
+                            + '<span class="fr-hint">JPG · TIFF · RAW</span></div>'
+                        )
+                        image_in = gr.File(
+                            label="ลากไฟล์มาวาง หรือคลิกเพื่อเลือก",
+                            file_count="single",
+                            elem_classes="fr-uploader",
+                        )
+                        preview = gr.Image(
+                            show_label=False,
+                            height=80,          # ภาพต้นฉบับย่อมาก
+                            interactive=False,
+                            type="numpy",
+                            elem_classes="fr-preview",
+                        )
+                        run_btn = gr.Button(
+                            "ฟื้นฟูภาพ", variant="primary", size="lg", elem_id="fr-run"
+                        )
+
+                # ---- ผลลัพธ์ (ใหญ่) ----
+                with gr.Column(elem_classes="fr-card"):
+                    gr.HTML(
+                        '<div class="fr-card-head">'
+                        '<span class="fr-card-title">ผลลัพธ์</span>'
+                        + '<span class="fr-hint">กดสลับภาพก่อน/หลังกลางเพื่อเทียบกัน</span></div>'
                     )
-                    color_fix = gr.Checkbox(value=default["color_fix"], label="แก้สีซีด/เพี้ยน")
-                    cf_strength = gr.Slider(
-                        0, 1, default["color_fix_strength"], step=0.05, label="ความแรงแก้สี"
+                    compare = gr.ImageSlider(
+                        label="",
+                        height=560,
+                        container=False,
+                        elem_classes="fr-card--compare",
+                    )
+                    stages = gr.Gallery(
+                        label="",
+                        columns=3,
+                        height=100,
+                        object_fit="cover",
+                        container=False,
+                        elem_classes="fr-card--plus__gallery",
+                    )
+                    log = gr.Textbox(
+                        label="",
+                        show_label=False,
+                        lines=4,
+                        max_lines=12,
+                        elem_classes="fr-log",
                     )
 
-                with gr.Accordion("ซ่อมภาพ", open=True):
-                    scratch = gr.Checkbox(value=default["scratch"], label="ลบรอยขีดข่วน/ฝุ่น")
-                    scratch_strength = gr.Slider(
-                        0, 1, default["scratch_strength"], step=0.05, label="ความไวการตรวจรอย"
+                # ---- ตั้งค่าขั้นตอน (ยุบ/ขยายได้) ----
+                with gr.Column(elem_classes="fr-card"):
+                    gr.HTML(
+                        '<div class="fr-card-head">'
+                        '<span class="fr-card-title">ตั้งค่าขั้นตอน</span>'
+                        + '<span class="fr-hint">ยุบ/ขยายแต่ละขั้นได้</span></div>'
                     )
-                    denoise = gr.Slider(0, 1, default["denoise"], step=0.05, label="ลดเกรน")
+                    preset = gr.Radio(
+                        choices=[(PRESET_LABELS[key], key) for key in PRESETS],
+                        value="color_negative",
+                        label="ประเภทต้นฉบับ",
+                    )
+                    preset_note = gr.Markdown(f"*{PRESET_NOTES['color_negative']}*")
+                    crop = gr.Checkbox(value=True, label="ครอปขอบฟิล์ม/ขอบสแกน")
 
-                with gr.Accordion("ใส่สี / ขยายภาพ / ใบหน้า", open=True):
-                    colorize = gr.Checkbox(value=default["colorize"], label="ใส่สี (เฉพาะภาพขาวดำ)")
-                    colorize_strength = gr.Slider(
-                        0, 1, default["colorize_strength"], step=0.05, label="ความแรงใส่สี"
+                    with gr.Accordion("กลับสีและแก้สี", open=False):
+                        invert = gr.Radio(
+                            choices=_INVERT_CHOICES, value="color", label="กลับสีเนกาทีฟ"
+                        )
+                        color_fix = gr.Checkbox(
+                            value=default["color_fix"], label="แก้สีซีด/เพี้ยน"
+                        )
+                        cf_strength = gr.Slider(
+                            0, 1, default["color_fix_strength"], step=0.05,
+                            label="ความแรงแก้สี",
+                        )
+
+                    with gr.Accordion("ซ่อมภาพ", open=False):
+                        scratch = gr.Checkbox(
+                            value=default["scratch"], label="ลบรอยขีดข่วน/ฝุ่น"
+                        )
+                        scratch_strength = gr.Slider(
+                            0, 1, default["scratch_strength"], step=0.05,
+                            label="ความไวการตรวจรอย",
+                        )
+                        denoise = gr.Slider(
+                            0, 1, default["denoise"], step=0.05, label="ลดเกรน"
+                        )
+
+                    with gr.Accordion("ใส่สี / ขยายภาพ / ใบหน้า", open=False):
+                        colorize = gr.Checkbox(
+                            value=default["colorize"], label="ใส่สี (เฉพาะภาพขาวดำ)"
+                        )
+                        colorize_strength = gr.Slider(
+                            0, 1, default["colorize_strength"], step=0.05,
+                            label="ความแรงใส่สี",
+                        )
+                        upscale = gr.Radio(
+                            choices=_UPSCALE_CHOICES,
+                            value=default["upscale"],
+                            label="เพิ่มความละเอียด",
+                        )
+                        face = gr.Checkbox(
+                            value=default["face"] is not None, label="ฟื้นฟูใบหน้า"
+                        )
+                        face_fidelity = gr.Slider(
+                            0, 1, default["face"] or 0.7, step=0.05,
+                            label="fidelity ใบหน้า (สูง = เหมือนต้นฉบับ)",
+                        )
+
+                    with gr.Accordion("ปรับแต่งขั้นสุดท้าย", open=False):
+                        final_wb = gr.Slider(
+                            0, 1, default["final_wb"], step=0.05, label="white balance"
+                        )
+                        final_contrast = gr.Slider(
+                            0, 0.6, default["final_contrast"], step=0.05, label="contrast"
+                        )
+                        final_grain = gr.Slider(
+                            0, 0.08, default["final_grain"], step=0.005, label="เติมเกรน"
+                        )
+
+                # ---- รูปที่เลือกไว้แล้ว (แสดงใต้ผลลัพธ์) ----
+                with gr.Column(scale=5, elem_classes="fr-card fr-card--grade"):
+                    gr.HTML(
+                        '<div class="fr-card-head">'
+                        '<span class="fr-card-title">รูปที่เลือกไว้แล้ว</span>'
+                        + '<span class="fr-hint">คลิกรูปเพื่อใช้งานต่อ</span></div>'
                     )
-                    upscale = gr.Radio(
-                        choices=_UPSCALE_CHOICES, value=default["upscale"], label="เพิ่มความละเอียด"
-                    )
-                    face = gr.Checkbox(value=default["face"] is not None, label="ฟื้นฟูใบหน้า")
-                    face_fidelity = gr.Slider(
-                        0, 1, default["face"] or 0.7, step=0.05,
-                        label="fidelity ใบหน้า (สูง = เหมือนต้นฉบับ)",
+                    graded = gr.Gallery(
+                        label="",
+                        columns=(1, 2, 3, 4, 5),
+                        value=(
+                            "خرج_HDR.jpg",
+                            "خرج_LQ.jpg",
+                            "خرج_HQ.jpg",
+                            "خرج_ช่วงกลาง.jpg",
+                            "out.jpg",
+                        ),
+                        height=108,
+                        object_fit="cover",
+                        preview=True,
+                        container=False,
+                        elem_classes="fr-card--grade__gallery",
                     )
 
-                with gr.Accordion("ปรับแต่งขั้นสุดท้าย", open=False):
-                    final_wb = gr.Slider(0, 1, default["final_wb"], step=0.05, label="white balance")
-                    final_contrast = gr.Slider(
-                        0, 0.6, default["final_contrast"], step=0.05, label="contrast"
+                # ---- บันทึกการทำงาน ----
+                with gr.Column(elem_id="fr-log", elem_classes="fr-card"):
+                    gr.HTML(
+                        '<div class="fr-card-head">'
+                        + '<span class="fr-card-title">บันทึกการทำงาน</span>'
+                        + '<span class="fr-hint">โชว์ log ทีละขั้น</span></div>'
                     )
-                    final_grain = gr.Slider(
-                        0, 0.08, default["final_grain"], step=0.005, label="เติมเกรน"
+                    log_full = gr.Textbox(
+                        label="",
+                        show_label=False,
+                        lines=7,
+                        max_lines=18,
+                        elem_classes="fr-log",
                     )
 
-                run_btn = gr.Button("ฟื้นฟูภาพ", variant="primary")
-
-            with gr.Column(scale=2):
-                compare = gr.ImageSlider(label="ก่อน / หลัง (ลากเส้นเทียบ)", height=460)
-                stages = gr.Gallery(label="ผลแต่ละขั้น", columns=3, height=280)
-                log = gr.Textbox(label="บันทึกการทำงาน", lines=8, max_lines=16)
-
+        # ---- เฟสสายงาน (ไม่แสดงบน UI — ใช้ภายใน) ----
         preset_inputs = [
             invert,
             color_fix,
@@ -152,7 +487,6 @@ def build_ui(info: gpu_mod.GPUInfo | None = None):
         )
 
         def show_preview(image_path):
-            """อ่านภาพด้วยตัวอ่านของโปรแกรม (รองรับ TIFF/RAW) แล้วคืนสำเนา 8-bit ไว้แสดง"""
             if not image_path:
                 return None
             try:
@@ -164,10 +498,26 @@ def build_ui(info: gpu_mod.GPUInfo | None = None):
 
         image_in.change(show_preview, inputs=[image_in], outputs=[preview])
 
-        def run_ui(image_path, preset_key, crop_border, invert_mode, cf_on, cf_s,
-                   scratch_on, scratch_s, denoise_s, colorize_on, colorize_s,
-                   upscale_scale, face_on, fidelity, wb, contrast, grain,
-                   progress=gr.Progress()):
+        def run_ui(
+            image_path,
+            preset_key,
+            crop_border,
+            invert_mode,
+            cf_on,
+            cf_s,
+            scratch_on,
+            scratch_s,
+            denoise_s,
+            colorize_on,
+            colorize_s,
+            upscale_scale,
+            face_on,
+            fidelity,
+            wb,
+            contrast,
+            grain,
+            progress=gr.Progress(),
+        ):
             if not image_path:
                 raise gr.Error("กรุณาเลือกภาพก่อนกดฟื้นฟู")
 
@@ -193,7 +543,8 @@ def build_ui(info: gpu_mod.GPUInfo | None = None):
 
             engine = Engine(preset_key, overrides, gpu=gpu, source_bits=bits)
             result = engine.run(
-                source, progress=lambda frac, msg: progress(0.05 + frac * 0.9, desc=msg)
+                source,
+                progress=lambda frac, msg: progress(0.05 + frac * 0.9, desc=msg),
             )
 
             after = result.image
@@ -245,5 +596,13 @@ def build_ui(info: gpu_mod.GPUInfo | None = None):
             ],
             outputs=[compare, stages, log],
         )
+
+        # สายงานเสริม: แท็บผลลัพธ์วิ่งตามรูป "หลัง" ของสไลเดอร์เทียบ (ค่าที่ได้เป็นคู่ before/after)
+        def sync_graded(value):
+            if isinstance(value, (tuple, list)):
+                return value[-1] if value else None
+            return value
+
+        compare.change(sync_graded, inputs=[compare], outputs=[graded], show_progress=False)
 
     return demo

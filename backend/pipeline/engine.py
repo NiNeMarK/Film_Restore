@@ -220,7 +220,11 @@ class Engine:
         return out, note
 
     def _step_denoise(self, img: np.ndarray) -> tuple[np.ndarray, str]:
-        out, note = denoise.denoise(img, float(self.settings.get("denoise", 0.5)))
+        out, note = denoise.denoise(
+            img,
+            float(self.settings.get("denoise", 0.5)),
+            device=self.gpu.device,
+        )
         return out, note
 
     def _step_colorize(self, img: np.ndarray) -> tuple[np.ndarray, str]:

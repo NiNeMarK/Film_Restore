@@ -8,8 +8,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import copy
-from basicsr.utils import get_root_logger
-from basicsr.utils.registry import ARCH_REGISTRY
+# vendored จาก sczhou/CodeFormer (basicsr/archs/vqgan_arch.py, Apache-2.0)
+# เปลี่ยนเฉพาะ import: basicsr -> ชิมภายในแพ็กเกจ (ดู vendor/_compat.py)
+from ._compat import ARCH_REGISTRY, get_root_logger
 
 def normalize(in_channels):
     return torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)

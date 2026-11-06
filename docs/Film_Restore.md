@@ -189,19 +189,19 @@ PRESETS = {
 
 ### Checklist
 
-- [ ] เฟส 1: ตั้งโปรเจกต์ + requirements.txt
-- [ ] เฟส 1: film_invert.py (เนกาทีฟสีและขาวดำ)
-- [ ] เฟส 1: color_fix.py
-- [ ] เฟส 1: ต่อ DDColor
-- [ ] เฟส 1: ต่อ Real-ESRGAN
-- [ ] เฟส 1: ต่อ CodeFormer
-- [ ] เฟส 1: engine.py + presets.py
-- [ ] เฟส 1: หน้า Gradio
-- [ ] เฟส 2: scratch.py (ตรวจหารอย + LaMa)
-- [ ] เฟส 2: denoise.py (SCUNet)
-- [ ] เฟส 2: gpu.py (ตรวจ VRAM, fp16, tiling)
+- [x] เฟส 1: ตั้งโปรเจกต์ + requirements.txt
+- [x] เฟส 1: film_invert.py (เนกาทีฟสีและขาวดำ)
+- [x] เฟส 1: color_fix.py
+- [x] เฟส 1: ต่อ DDColor
+- [x] เฟส 1: ต่อ Real-ESRGAN
+- [x] เฟส 1: ต่อ CodeFormer
+- [x] เฟส 1: engine.py + presets.py
+- [x] เฟส 1: หน้า Gradio
+- [x] เฟส 2: scratch.py (ตรวจหารอย + LaMa)
+- [x] เฟส 2: denoise.py (SCUNet)
+- [x] เฟส 2: gpu.py (ตรวจ VRAM, fp16, tiling)
 - [ ] เฟส 3: Frontend React
-- [ ] เฟส 4: แพ็กเป็น .exe
+- [x] เฟส 4: แพ็กเป็น .exe
 - [ ] เฟส 5: พู่กันระบุสี / Diffusion / fine-tune
 
 ---

@@ -1,13 +1,15 @@
 import math
+
 import numpy as np
 import torch
 from torch import nn, Tensor
 import torch.nn.functional as F
 from typing import Optional, List
 
-from basicsr.archs.vqgan_arch import *
-from basicsr.utils import get_root_logger
-from basicsr.utils.registry import ARCH_REGISTRY
+# vendored จาก sczhou/CodeFormer (basicsr/archs/codeformer_arch.py, Apache-2.0)
+# เปลี่ยนเฉพาะ import: basicsr -> ชิมภายในแพ็กเกจ (ดู vendor/_compat.py)
+from ._compat import ARCH_REGISTRY, get_root_logger
+from .vqgan_arch import *
 
 def calc_mean_std(feat, eps=1e-5):
     """Calculate mean and std for adaptive_instance_normalization.

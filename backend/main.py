@@ -4,6 +4,7 @@ API (ใช้ต่อยอดกับ React ในเฟส 3 ได้):
   GET  /api/health    สเปกเครื่อง + สถานะโมเดล
   GET  /api/presets   รายการโหมดและค่าเริ่มต้น
   POST /api/restore   อัปโหลดภาพ + ตั้งค่า แล้วคืนผลแต่ละขั้นพร้อม URL
+  WS   /ws/restore    เหมือน POST แต่ส่งความคืบหน้าเป็น event ระหว่างรัน
 
 รัน: python backend/main.py --host 127.0.0.1 --port 7860
 เปิดให้มือถือในวง Wi-Fi เดียวกันใช้: python backend/main.py --host 0.0.0.0
@@ -12,6 +13,7 @@ API (ใช้ต่อยอดกับ React ในเฟส 3 ได้):
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import os
 import sys
@@ -24,19 +26,28 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import uvicorn
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import (
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.core import gpu as gpu_mod
+from backend.core import paths
 from backend.core.image_io import IMAGE_EXTS, RAW_EXTS, crop_film_border, load_image, save_image
 from backend.core.model_manager import get_manager
 from backend.pipeline.engine import Engine
 from backend.pipeline.presets import PRESET_LABELS, PRESET_NOTES, PRESETS, get_preset
 
-BACKEND_DIR = Path(__file__).resolve().parent
-OUTPUT_DIR = BACKEND_DIR / "outputs"
+# โหมดซอร์ส = backend/outputs, โหมด .exe = %LOCALAPPDATA%\FilmRestore\outputs
+OUTPUT_DIR = paths.outputs_dir()
 UPLOAD_DIR = OUTPUT_DIR / "uploads"
 ALLOWED_EXTS = IMAGE_EXTS | RAW_EXTS
 
@@ -51,13 +62,13 @@ def gpu_info() -> gpu_mod.GPUInfo:
 
 
 def process_image(input_path: Path, preset: str, overrides: dict, crop: bool,
-                  job_id: str) -> dict:
+                  job_id: str, progress=None) -> dict:
     """รัน pipeline แล้วบันทึกผลทุกขั้นลง backend/outputs/<job_id>"""
     img, bits = load_image(input_path)
     source = crop_film_border(img) if crop else img
 
     engine = Engine(preset, overrides, gpu=gpu_info(), source_bits=bits)
-    result = engine.run(source)
+    result = engine.run(source, progress=progress)
 
     job_dir = OUTPUT_DIR / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
@@ -87,6 +98,87 @@ def process_image(input_path: Path, preset: str, overrides: dict, crop: bool,
         json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     return meta
+
+
+async def _send(websocket: WebSocket, payload: dict) -> bool:
+    """ส่ง JSON กลับ — คืน False ถ้า client ปิดไปแล้ว"""
+    try:
+        await websocket.send_json(payload)
+        return True
+    except (RuntimeError, WebSocketDisconnect):
+        return False
+
+
+async def _run_ws_job(websocket: WebSocket, settings: dict, data: bytes) -> None:
+    """รันงานเดียวจาก WebSocket แล้วสตรีม progress กลับจนจบ
+
+    event ที่ส่งกลับ: {"type": "progress"|"stage"|"done"|"error", ...}
+    """
+    preset = settings.get("preset", "color_negative")
+    if preset not in PRESETS:
+        await _send(websocket, {"type": "error", "detail": f"ไม่รู้จักโหมด '{preset}'"})
+        return
+
+    overrides = settings.get("overrides") or {}
+    if not isinstance(overrides, dict):
+        await _send(websocket, {"type": "error", "detail": "overrides ต้องเป็น JSON object"})
+        return
+
+    suffix = Path(str(settings.get("filename") or "upload.png")).suffix.lower() or ".png"
+    if suffix not in ALLOWED_EXTS:
+        await _send(
+            websocket,
+            {
+                "type": "error",
+                "detail": f"ไม่รองรับไฟล์ '{suffix}' (รองรับ: {', '.join(sorted(ALLOWED_EXTS))})",
+            },
+        )
+        return
+    if not data:
+        await _send(websocket, {"type": "error", "detail": "ไม่ได้รับข้อมูลภาพ"})
+        return
+
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    job_id = uuid.uuid4().hex[:12]
+    upload_path = UPLOAD_DIR / f"{job_id}{suffix}"
+    upload_path.write_bytes(data)
+
+    loop = asyncio.get_running_loop()
+    events: asyncio.Queue = asyncio.Queue()
+
+    def progress(fraction: float, message: str) -> None:
+        loop.call_soon_threadsafe(events.put_nowait, ("progress", fraction, message))
+
+    def job() -> None:
+        try:
+            payload = process_image(
+                upload_path,
+                preset,
+                overrides,
+                bool(settings.get("crop_border", True)),
+                job_id,
+                progress=progress,
+            )
+        except Exception as exc:  # แจ้ง client แล้วรอรับงานถัดไป
+            loop.call_soon_threadsafe(events.put_nowait, ("error", 0.0, str(exc)))
+        else:
+            loop.call_soon_threadsafe(events.put_nowait, ("done", 1.0, payload))
+
+    loop.run_in_executor(None, job)
+
+    while True:
+        kind, fraction, payload = await events.get()
+        if kind == "progress":
+            ok = await _send(
+                websocket,
+                {"type": "progress", "progress": round(float(fraction), 3), "message": payload},
+            )
+        elif kind == "error":
+            ok = await _send(websocket, {"type": "error", "detail": payload})
+        else:
+            ok = await _send(websocket, {"type": "done", **payload})
+        if not ok or kind != "progress":
+            return
 
 
 def create_app(with_ui: bool = True) -> FastAPI:
@@ -149,18 +241,51 @@ def create_app(with_ui: bool = True) -> FastAPI:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
         return JSONResponse(payload)
 
+    @app.websocket("/ws/restore")
+    async def ws_restore(websocket: WebSocket):
+        """client ส่ง text JSON (settings) ตามด้วย binary ภาพ — รับได้หลายงานต่อ connection
+
+        ตัวอย่าง:
+          ws.send({"preset": "color_negative", "overrides": {"face": null}})
+          ws.send(image_bytes)
+          -> {"type": "progress", "progress": 0.2, "message": "กลับสีเนกาทีฟ…"}
+          -> {"type": "done", ...ผลเหมือน POST /api/restore}
+        """
+        await websocket.accept()
+        try:
+            while True:
+                raw = await websocket.receive_text()
+                try:
+                    settings = json.loads(raw or "{}")
+                except json.JSONDecodeError as exc:
+                    await _send(
+                        websocket, {"type": "error", "detail": f"settings ต้องเป็น JSON: {exc}"}
+                    )
+                    continue
+                if not isinstance(settings, dict):
+                    await _send(websocket, {"type": "error", "detail": "settings ต้องเป็น JSON object"})
+                    continue
+
+                data = await websocket.receive_bytes()
+                await _run_ws_job(websocket, settings, data)
+        except WebSocketDisconnect:
+            return
+
     if with_ui:
         try:
             import gradio as gr
 
-            from backend.ui import build_ui
+            from backend.ui import CSS as UI_CSS
+            from backend.ui import build_ui, theme as ui_theme
         except ImportError as exc:  # pragma: no cover - ขึ้นกับการติดตั้ง
             raise RuntimeError(
                 "ต้องติดตั้ง gradio เพื่อใช้หน้าเว็บ (pip install gradio) "
                 "หรือรันด้วย FILM_RESTORE_API_ONLY=1 เพื่อใช้เฉพาะ API"
             ) from exc
 
-        app = gr.mount_gradio_app(app, build_ui(gpu_info()), path="/")
+        app = gr.mount_gradio_app(
+            app, build_ui(gpu_info()), path="/", theme=ui_theme(), css=UI_CSS
+        )
 
     return app
 

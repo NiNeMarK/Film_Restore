@@ -1,12 +1,14 @@
-# -*- coding: utf-8 -*-
+# vendored จาก cszn/SCUNet (models/network_scunet.py, Apache-2.0)
+# เปลี่ยนเฉพาะ import: ตัด thop (ใช้แค่ใน __main__), timm -> _compat
 import math
+
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
-from thop import profile
-from einops import rearrange 
+from einops import rearrange
 from einops.layers.torch import Rearrange, Reduce
-from timm.models.layers import trunc_normal_, DropPath
+
+from ._compat import DropPath, trunc_normal_
 
 
 class WMSA(nn.Module):

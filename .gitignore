@@ -9,7 +9,16 @@ backend/models/*
 !backend/models/.gitkeep
 backend/outputs/
 
+# ชุดทดสอบตายตัว (ภาพ Kodak PhotoCD) — สร้างใหม่ได้ด้วย backend/tools/make_testset.py
+testset/
+backend_server.log
+
 # แพ็กเกจเดสก์ท็อป
 build/
 dist/
 *.spec
+!FilmRestore.spec
+
+# ไฟล์ชั่วคราวจากการทดสอบ/จับภาพหน้าจอ
+=6.5
+_*.png
