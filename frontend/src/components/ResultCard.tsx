@@ -1,6 +1,8 @@
+import { useState } from "react";
 import type { JobResult } from "../types";
 import CompareSlider from "./CompareSlider";
 import { ImageIcon } from "./icons";
+import Lightbox from "./Lightbox";
 
 type ResultThumb = { id: string; thumb: string; label: string; active: boolean };
 
@@ -49,6 +51,8 @@ export default function ResultCard({
   onApplySettings,
 }: Props) {
   const active = result && stageIndex >= 0 ? result.stages[stageIndex] : null;
+  const [zoomed, setZoomed] = useState(false);
+  const afterUrl = active ? active.url : (result?.result_url ?? "");
 
   return (
     <section className="card">
@@ -57,13 +61,19 @@ export default function ResultCard({
           <ImageIcon />
           ผลลัพธ์
         </h2>
-        <span className="hint">ลากเส้นกลางภาพเพื่อเทียบก่อน/หลัง</span>
+        {result ? (
+          <button type="button" className="link-button" onClick={() => setZoomed(true)}>
+            ⤢ ดูเต็มจอ
+          </button>
+        ) : (
+          <span className="hint">ลากเส้นกลางภาพเพื่อเทียบก่อน/หลัง</span>
+        )}
       </header>
 
       {error && <p className="error">{error}</p>}
 
       {result ? (
-        <CompareSlider before={result.original_url} after={active ? active.url : result.result_url} />
+        <CompareSlider before={result.original_url} after={afterUrl} />
       ) : (
         <div className="result-empty">
           {running ? (
@@ -137,6 +147,15 @@ export default function ResultCard({
           </button>
           <span className="hint">{active ? `กำลังดูขั้น: ${active.label}` : "กำลังดูผลลัพธ์สุดท้าย"}</span>
         </div>
+      )}
+
+      {zoomed && result && (
+        <Lightbox
+          before={result.original_url}
+          after={afterUrl}
+          title={`ผลลัพธ์ — ${active ? active.label : "ภาพสุดท้าย"}`}
+          onClose={() => setZoomed(false)}
+        />
       )}
     </section>
   );

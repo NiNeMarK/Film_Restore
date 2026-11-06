@@ -839,3 +839,109 @@ body::before {
   color: #6b5540;
   font-size: 0.78rem;
 }
+
+/* ---------- lightbox (ดูเต็มจอ) ---------- */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px 8px;
+  background: rgba(22, 15, 10, 0.97);
+  backdrop-filter: blur(2px);
+}
+
+.lightbox-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: #f0e2cc;
+}
+
+.lightbox-title {
+  margin-right: auto;
+  font-family: "IBM Plex Serif Thai", "Noto Serif Thai", serif;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.lightbox-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lightbox button {
+  padding: 4px 10px;
+  border: 1px solid rgba(245, 235, 224, 0.25);
+  border-radius: 2px;
+  background: rgba(245, 235, 224, 0.1);
+  color: #f0e2cc;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.lightbox button:hover {
+  background: rgba(245, 235, 224, 0.2);
+}
+
+.lightbox button.is-on {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: #2c1810;
+  font-weight: 700;
+}
+
+.lightbox-zoom-value {
+  min-width: 46px;
+  text-align: center;
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  color: #d8c6a8;
+}
+
+.lightbox-close {
+  margin-left: 4px;
+}
+
+.lightbox-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 3px;
+  background: #0f0a06;
+}
+
+.lightbox-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  transform-origin: center center;
+  user-select: none;
+}
+
+.lightbox-stage.is-compare {
+  cursor: ew-resize;
+}
+
+.compare--full {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: #0f0a06;
+}
+
+.lightbox-hint {
+  margin: 0;
+  text-align: center;
+  font-size: 0.7rem;
+  color: #9a8365;
+}

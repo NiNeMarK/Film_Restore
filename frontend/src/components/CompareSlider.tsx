@@ -3,10 +3,11 @@ import { useCallback, useRef, useState } from "react";
 type Props = {
   before: string;
   after: string;
+  className?: string;
 };
 
 /** สไลเดอร์เทียบก่อน/หลัง — ลากเส้นกลางได้ (เมาส์/ทัช) */
-export default function CompareSlider({ before, after }: Props) {
+export default function CompareSlider({ before, after, className = "compare" }: Props) {
   const [pos, setPos] = useState(50);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -21,7 +22,7 @@ export default function CompareSlider({ before, after }: Props) {
 
   return (
     <div
-      className="compare"
+      className={className}
       ref={ref}
       onPointerDown={(event) => {
         event.currentTarget.setPointerCapture(event.pointerId);
